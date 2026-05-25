@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+.next/
+
+# Environment
+.env.local
+.env*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
