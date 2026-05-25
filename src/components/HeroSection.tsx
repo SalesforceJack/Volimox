@@ -1,34 +1,72 @@
 import { cn } from "@/lib/utils"
 
-interface LiveMetric {
+/* ─── Types ─── */
+
+interface SLAMetric {
   label: string
   value: string
   sublabel: string
+  status: "operational" | "degraded" | "warning"
 }
 
-const liveMetrics: LiveMetric[] = [
-  { label: "Interactions Processed", value: "142,904", sublabel: "Across all active deployments" },
-  { label: "Avg. Settlement Time", value: "42s", sublabel: "From inquiry to quote" },
-  { label: "Hallucination Rate", value: "0.00%", sublabel: "Verified over 30 days" },
+/* ─── Enterprise SLA Metrics ─── */
+
+const slaMetrics: SLAMetric[] = [
+  {
+    label: "Deterministic Guardrail Enforcement",
+    value: "100%",
+    sublabel: "Code-level validation checks — prompt injection, price consent, geo-fence",
+    status: "operational",
+  },
+  {
+    label: "Average Automated Resolution",
+    value: "92.4%",
+    sublabel: "Graceful human-agent escalation for remaining 7.6% of edge cases",
+    status: "operational",
+  },
+  {
+    label: "Avg. Token-to-Speech Latency",
+    value: "~850ms",
+    sublabel: "Voice stream round-trip including LLM inference + TTS synthesis",
+    status: "operational",
+  },
 ]
 
-function MetricCard({ metric }: { metric: LiveMetric }) {
+/* ─── Status Indicator ─── */
+
+function StatusDot({ status }: { status: SLAMetric["status"] }) {
+  const colors: Record<string, string> = {
+    operational: "bg-emerald-500",
+    degraded: "bg-amber-400",
+    warning: "bg-rose-400",
+  }
+  return <span className={cn("h-1.5 w-1.5 rounded-full", colors[status])} />
+}
+
+/* ─── Metric Card ─── */
+
+function MetricCard({ metric }: { metric: SLAMetric }) {
   return (
     <div className="flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition-shadow duration-200 hover:shadow-md">
-      <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
-        {metric.label}
-      </span>
+      <div className="flex items-center gap-2">
+        <StatusDot status={metric.status} />
+        <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+          {metric.label}
+        </span>
+      </div>
       <span className="text-2xl font-bold tracking-tight text-slate-950">
         {metric.value}
       </span>
-      <span className="text-xs text-slate-400">{metric.sublabel}</span>
+      <span className="text-xs leading-relaxed text-slate-400">{metric.sublabel}</span>
     </div>
   )
 }
 
+/* ─── Root Component ─── */
+
 export function HeroSection() {
   return (
-    <section className="relative w-full overflow-hidden bg-gradient-to-b from-white via-slate-50 to-zinc-100">
+    <section className="relative w-full overflow-hidden bg-slate-50">
       {/* Subtle mesh grid overlay */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.03]"
@@ -44,7 +82,7 @@ export function HeroSection() {
 
       <div className="relative mx-auto flex max-w-7xl flex-col items-center px-4 pb-24 pt-20 sm:px-6 sm:pb-32 sm:pt-28 lg:px-8">
         {/* Eyebrow badge */}
-        <div className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-3.5 py-1 text-xs font-medium text-slate-600">
+        <div className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-1 text-xs font-medium text-slate-600 shadow-sm">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
           Enterprise AI — Production Ready
         </div>
@@ -84,9 +122,9 @@ export function HeroSection() {
           </a>
         </div>
 
-        {/* Live metrics row */}
-        <div className="mt-16 grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3">
-          {liveMetrics.map((metric) => (
+        {/* Enterprise SLA dashboard */}
+        <div className="mt-16 grid w-full max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
+          {slaMetrics.map((metric) => (
             <MetricCard key={metric.label} metric={metric} />
           ))}
         </div>

@@ -53,17 +53,27 @@ function MapPinIcon({ className }: { className?: string }) {
   )
 }
 
+/* ─── Code-block label helper ─── */
+
+function CodeRef({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center rounded border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-700">
+      {label}
+    </span>
+  )
+}
+
 /* ─── Pillar Configuration ─── */
 
 const pillars: PillarConfig[] = [
   {
-    title: "Prompt Injection Defense",
+    title: "Hallucination Containment & Fallback Trees",
     description:
-      "Multi-layer input sanitisation and role-locked system prompts prevent jailbreak attempts, context leakage, and unauthorised tool invocation across every agent deployment.",
+      "When LLM confidence scores drop below configurable threshold, the stateless proxy middleware intercepts the runtime token stream and shifts execution to a deterministic JSON state machine or triggers an API-based human-in-the-loop callback. Does not prevent hallucinations — contains and routes around them.",
     details: [
-      "Role-locked system prompts with strict output formatting constraints",
-      "Input sanitisation pipeline stripping control characters and known injection patterns",
-      "Runtime anomaly detection on LLM response entropy and token distribution",
+      "Confidence-score threshold monitoring on every LLM response token stream via proxy interceptor",
+      "Deterministic JSON state-machine fallback — quote computation, slot validation, and payment amounts bypass LLM entirely",
+      "Human-in-the-loop callback via webhook when automated containment cannot resolve ambiguity",
     ],
     moduleRef: "src/lib/retell-abuse-guard.ts",
     accentColor: "text-rose-600",
@@ -75,11 +85,11 @@ const pillars: PillarConfig[] = [
   {
     title: "Financial Integrity Layer",
     description:
-      "Deterministic quote computation with cryptographic price-consent binding prevents hallucinated pricing, phantom charges, and payment-amount tampering.",
+      "Deterministic quote computation with cryptographic price-consent binding. The LLM never computes numeric values — it extracts structured slot data, then a stateless TypeScript engine computes pricing. Quote hashes are signed at offer and verified at payment to detect tampering.",
     details: [
-      "Cryptographic price-consent binding — quote hash signed at offer, verified at payment",
-      "Deterministic quote engine with no LLM influence on numeric computation",
-      "Payment guardrails enforcing pre-authorisation holds before service delivery",
+      "Cryptographic price-consent binding — quote hash signed at offer via HMAC-SHA256, verified at payment",
+      "Deterministic quote engine with zero LLM influence on numeric computation — pricing runs in isolated TypeScript runtime",
+      "Payment guardrails enforcing pre-authorisation holds before service delivery; failed holds trigger escalation path",
     ],
     moduleRef: "src/lib/retell-price-consent-integrity.ts",
     accentColor: "text-amber-600",
@@ -91,11 +101,11 @@ const pillars: PillarConfig[] = [
   {
     title: "Anti-Loop & Circuit Breakers",
     description:
-      "Conversational depth limits, repetition detectors, and escalation timeouts prevent infinite loops, runaway API costs, and degraded user experience.",
+      "Configurable turn-count limits, semantic repetition detectors, and per-session API cost budgets prevent infinite loops and runaway compute costs. When thresholds are breached, the circuit breaker triggers a graceful handoff to a human operator rather than continuing degraded automation.",
     details: [
-      "Configurable turn-count limits with graceful handoff to human operators",
-      "Semantic repetition detection — triggers circuit breaker on n-gram overlap thresholds",
-      "API cost budgeting per session with automatic tool-call suspension at limits",
+      "Configurable turn-count limits with graceful handoff to human operators via escalation webhook",
+      "Semantic repetition detection — n-gram overlap analysis triggers circuit breaker before cost overrun",
+      "Per-session API cost budgeting with automatic tool-call suspension at configurable limits",
     ],
     moduleRef: "src/lib/retell-duplicate-guard.ts",
     accentColor: "text-emerald-600",
@@ -107,11 +117,11 @@ const pillars: PillarConfig[] = [
   {
     title: "Geo-Fencing & Service Boundaries",
     description:
-      "Spatial operation limits enforced via Google Maps Routes API radius checks, airport-code validation, and jurisdiction-aware tax computation.",
+      "Spatial operation limits enforced via Google Maps Routes API radius checks, airport-code validation against FAA/IATA registries, and jurisdiction-aware tax computation. Out-of-bounds requests are rejected with structured error payloads rather than hallucinated service areas.",
     details: [
-      "Service-radius enforcement with configurable geo-fence polygons per deployment",
-      "Airport-code validation against FAA/IATA registries for limo/transit use cases",
-      "Jurisdiction-aware sales-tax computation using validated pickup/dropoff addresses",
+      "Service-radius enforcement with configurable geo-fence polygons per deployment — out-of-bounds requests return structured rejection",
+      "Airport-code validation against FAA/IATA registries for limo/transit use cases; unknown codes trigger human verification",
+      "Jurisdiction-aware sales-tax computation using validated pickup/dropoff addresses with fallback to base rate on ambiguity",
     ],
     moduleRef: "src/lib/retell-service-area.ts",
     accentColor: "text-sky-600",
@@ -143,7 +153,7 @@ function PillarCard({ pillar }: { pillar: PillarConfig }) {
               pillar.iconRing,
             )}
           >
-            {pillar.title === "Prompt Injection Defense" && <ShieldIcon className={pillar.iconColor} />}
+            {pillar.title.startsWith("Hallucination Containment") && <ShieldIcon className={pillar.iconColor} />}
             {pillar.title === "Financial Integrity Layer" && <LockIcon className={pillar.iconColor} />}
             {pillar.title === "Anti-Loop & Circuit Breakers" && <LoopIcon className={pillar.iconColor} />}
             {pillar.title === "Geo-Fencing & Service Boundaries" && <MapPinIcon className={pillar.iconColor} />}
