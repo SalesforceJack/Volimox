@@ -1,157 +1,111 @@
-/**
- * Volimox — HeroSection
- *
- * Premium, technically dense hero section for the Volimox B2B AI Agency
- * marketing platform. Server component — no "use client".
- */
-
 import { cn } from "@/lib/utils"
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
 
 interface LiveMetric {
   label: string
   value: string
+  sublabel: string
 }
 
 const liveMetrics: LiveMetric[] = [
-  { label: "Total Automated Intake Interactions", value: "142,904" },
-  { label: "Average Payment Time-To-Settlement", value: "42 seconds" },
-  { label: "Hallucination Drift Rate", value: "0.00%" },
+  { label: "Interactions Processed", value: "142,904", sublabel: "Across all active deployments" },
+  { label: "Avg. Settlement Time", value: "42s", sublabel: "From inquiry to quote" },
+  { label: "Hallucination Rate", value: "0.00%", sublabel: "Verified over 30 days" },
 ]
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
 
 function MetricCard({ metric }: { metric: LiveMetric }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 backdrop-blur-sm transition-colors hover:bg-white/[0.05]">
-      <span className="relative flex h-2.5 w-2.5 shrink-0">
-        <span className="absolute inset-0 rounded-full bg-emerald-400 opacity-75 animate-pulse" />
-        <span className="relative rounded-full h-2.5 w-2.5 bg-emerald-500" />
+    <div className="flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition-shadow duration-200 hover:shadow-md">
+      <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+        {metric.label}
       </span>
-      <div className="flex flex-col min-w-0">
-        <span className="text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-          {metric.label}
-        </span>
-        <span className="text-lg font-bold tabular-nums tracking-tight text-white sm:text-xl">
-          {metric.value}
-        </span>
-      </div>
+      <span className="text-2xl font-bold tracking-tight text-slate-950">
+        {metric.value}
+      </span>
+      <span className="text-xs text-slate-400">{metric.sublabel}</span>
     </div>
   )
 }
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
 export function HeroSection() {
   return (
-    <section className="relative w-full overflow-hidden bg-zinc-950">
-      {/* Grid pattern overlay */}
+    <section className="relative w-full overflow-hidden bg-gradient-to-b from-white via-slate-50 to-zinc-100">
+      {/* Subtle mesh grid overlay */}
       <div
-        className="absolute inset-0 opacity-[0.025] pointer-events-none"
+        className="pointer-events-none absolute inset-0 opacity-[0.03]"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)",
+            "linear-gradient(rgba(0,0,0,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.07) 1px, transparent 1px)",
           backgroundSize: "64px 64px",
         }}
       />
 
-      {/* Radial ambient glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[700px] bg-gradient-to-b from-amber-500/[0.04] via-amber-500/[0.01] to-transparent rounded-full blur-3xl pointer-events-none" />
+      {/* Soft radial glow — top-right */}
+      <div className="pointer-events-none absolute -right-48 -top-48 h-[600px] w-[600px] rounded-full bg-amber-200/20 blur-[120px]" />
 
-      <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-24 sm:pt-36 sm:pb-28 lg:pt-44 lg:pb-32">
-        {/* Badge */}
-        <div className="mb-8 flex justify-center sm:justify-start">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-3.5 py-1.5 text-[11px] font-medium text-zinc-400 backdrop-blur-sm">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inset-0 rounded-full bg-emerald-400 opacity-75 animate-pulse" />
-              <span className="relative rounded-full h-1.5 w-1.5 bg-emerald-500" />
-            </span>
-            Enterprise Conversational AI — Production-Proven Architecture
-          </span>
+      <div className="relative mx-auto flex max-w-7xl flex-col items-center px-4 pb-24 pt-20 sm:px-6 sm:pb-32 sm:pt-28 lg:px-8">
+        {/* Eyebrow badge */}
+        <div className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-3.5 py-1 text-xs font-medium text-slate-600">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          Enterprise AI — Production Ready
         </div>
 
         {/* Headline */}
-        <h1 className="max-w-5xl text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl xl:text-6xl">
-          We build full-stack autonomous conversational systems that automate
-          entry intake, live complex pricing calculation, payment capture, and
-          driver dispatch at{" "}
-          <span className="bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 bg-clip-text text-transparent">
-            enterprise scale
+        <h1 className="max-w-4xl text-center text-4xl font-bold leading-[1.1] tracking-tight text-slate-950 sm:text-5xl md:text-6xl lg:text-7xl">
+          Deploy AI Agents That
+          <br />
+          <span className="bg-gradient-to-r from-amber-600 via-amber-500 to-orange-500 bg-clip-text text-transparent">
+            Run Your Operations
           </span>
-          .
         </h1>
 
-        {/* Subtitle */}
-        <p className="mt-6 max-w-4xl text-sm leading-relaxed text-zinc-400 sm:text-base sm:leading-relaxed">
-          Production-proven across logistics, manufacturing, real estate, and
-          outpatient healthcare — powered by the same architecture that
-          autonomously orchestrates Proton Limo&rsquo;s entire
-          booking-to-dispatch lifecycle. Every deployment ships with
-          deterministic state-machine routing, idempotent payment capture,
-          CRM-native fulfillment, and immutable system-level behavioral
-          guardrails that user-supplied text cannot override.
+        {/* Subheadline */}
+        <p className="mt-6 max-w-2xl text-center text-base leading-relaxed text-slate-600 sm:text-lg">
+          Volimox builds purpose-built AI agents for logistics, manufacturing, real estate,
+          and healthcare — not chatbots, but autonomous operational systems that dispatch
+          fleets, triage patients, and reconcile supply chains.
         </p>
 
-        {/* CTA */}
-        <div className="mt-8 flex flex-wrap gap-3">
+        {/* CTA buttons */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
           <a
             href="#lead-estimator"
-            className={cn(
-              "inline-flex shrink-0 items-center justify-center rounded-lg",
-              "h-10 gap-2 px-5",
-              "bg-white text-black text-sm font-medium",
-              "transition-all hover:bg-white/90",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-            )}
+            className="inline-flex h-11 items-center gap-2 rounded-lg bg-slate-950 px-6 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-slate-800 hover:shadow-md active:scale-[0.98]"
           >
-            Schedule Architecture Review
+            Deploy Your Agent
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
+          </a>
+          <a
+            href="#enterprise-showcase"
+            className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-6 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:bg-slate-50 hover:shadow-md active:scale-[0.98]"
+          >
+            View Case Studies
           </a>
         </div>
 
-        {/* Live Metrics Ticker */}
-        <div className="mt-16 rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-md p-5 sm:p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <span className="relative flex h-1.5 w-1.5 shrink-0">
-              <span className="absolute h-1.5 w-1.5 rounded-full bg-emerald-400 opacity-60 animate-ping" />
-              <span className="relative h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            </span>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-emerald-400/80">
-              Live Telemetry
-            </span>
-            <span className="h-px flex-1 bg-gradient-to-r from-emerald-500/20 to-transparent" />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {liveMetrics.map((metric) => (
-              <MetricCard key={metric.label} metric={metric} />
-            ))}
-          </div>
+        {/* Live metrics row */}
+        <div className="mt-16 grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3">
+          {liveMetrics.map((metric) => (
+            <MetricCard key={metric.label} metric={metric} />
+          ))}
         </div>
 
         {/* Technical vocabulary strip */}
-        <div className="mt-12 flex flex-wrap gap-x-6 gap-y-2 text-[11px] text-zinc-600">
-          <span>Autonomous conversational orchestration</span>
-          <span className="hidden sm:inline text-zinc-700">&middot;</span>
-          <span>Deterministic state-machine routing</span>
-          <span className="hidden sm:inline text-zinc-700">&middot;</span>
-          <span>Idempotent payment capture</span>
-          <span className="hidden sm:inline text-zinc-700">&middot;</span>
-          <span>CRM-native fulfillment</span>
-          <span className="hidden sm:inline text-zinc-700">&middot;</span>
-          <span>Immutable system-level behavioral guardrails</span>
+        <div className="mt-16 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-xs font-medium text-slate-400">
+          <span>Retell AI</span>
+          <span className="h-3 w-px bg-slate-200" />
+          <span>Firebase</span>
+          <span className="h-3 w-px bg-slate-200" />
+          <span>Next.js 15</span>
+          <span className="h-3 w-px bg-slate-200" />
+          <span>Stripe</span>
+          <span className="h-3 w-px bg-slate-200" />
+          <span>Twilio</span>
+          <span className="h-3 w-px bg-slate-200" />
+          <span>PostgreSQL</span>
         </div>
       </div>
     </section>
   )
 }
-
-export default HeroSection

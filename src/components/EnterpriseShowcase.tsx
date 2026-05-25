@@ -1,191 +1,224 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import enterpriseVerticals, { type EnterpriseVertical } from "@/config/enterpriseVerticals"
+import { enterpriseVerticals, type EnterpriseVertical } from "@/config/enterpriseVerticals"
 
-// ---------------------------------------------------------------------------
-// Color schemes per vertical
-// ---------------------------------------------------------------------------
-
+/* ─── Sector colour scheme ─── */
 type SectorScheme = {
+  tabBg: string
   tabActive: string
+  tabText: string
+  accent: string
   accentBorder: string
-  accentBg: string
-  accentText: string
-  accentBadge: string
-  pipelineGradient: string
-  stageBorder: string
-  stageBg: string
-  stageNumberGradient: string
-  metricAccent: string
-  sectionTitleAccent: string
+  badgeBg: string
+  badgeText: string
+  iconColor: string
+  cardBorder: string
 }
 
 const sectorSchemes: Record<string, SectorScheme> = {
   "logistics-fleet": {
-    tabActive: "data-[active]:bg-indigo-900/60 data-[active]:text-indigo-100 data-[active]:border-indigo-500/40",
-    accentBorder: "border-amber-500/40",
-    accentBg: "bg-amber-500/8",
-    accentText: "text-amber-400",
-    accentBadge: "border-amber-500/30 bg-amber-500/15 text-amber-400",
-    pipelineGradient: "from-indigo-500 to-blue-500",
-    stageBorder: "border-indigo-400/20",
-    stageBg: "bg-indigo-950/30",
-    stageNumberGradient: "from-indigo-500 to-blue-600",
-    metricAccent: "text-indigo-400",
-    sectionTitleAccent: "text-indigo-300",
+    tabBg: "data-[state=active]:bg-white data-[state=active]:shadow-sm",
+    tabActive: "text-indigo-700",
+    tabText: "text-slate-500 data-[state=active]:text-indigo-700",
+    accent: "bg-indigo-50 text-indigo-700",
+    accentBorder: "border-indigo-200",
+    badgeBg: "bg-indigo-50",
+    badgeText: "text-indigo-700",
+    iconColor: "text-indigo-600",
+    cardBorder: "border-slate-200",
   },
   "manufacturing-supply-chain": {
-    tabActive: "data-[active]:bg-amber-900/50 data-[active]:text-amber-100 data-[active]:border-amber-500/40",
-    accentBorder: "border-amber-500/30",
-    accentBg: "bg-amber-500/8",
-    accentText: "text-amber-400",
-    accentBadge: "border-amber-500/30 bg-amber-500/15 text-amber-400",
-    pipelineGradient: "from-amber-500 to-orange-600",
-    stageBorder: "border-amber-400/20",
-    stageBg: "bg-amber-950/30",
-    stageNumberGradient: "from-amber-500 to-orange-600",
-    metricAccent: "text-amber-400",
-    sectionTitleAccent: "text-amber-300",
+    tabBg: "data-[state=active]:bg-white data-[state=active]:shadow-sm",
+    tabActive: "text-amber-700",
+    tabText: "text-slate-500 data-[state=active]:text-amber-700",
+    accent: "bg-amber-50 text-amber-700",
+    accentBorder: "border-amber-200",
+    badgeBg: "bg-amber-50",
+    badgeText: "text-amber-700",
+    iconColor: "text-amber-600",
+    cardBorder: "border-slate-200",
   },
   "real-estate-operations": {
-    tabActive: "data-[active]:bg-emerald-900/50 data-[active]:text-emerald-100 data-[active]:border-emerald-500/40",
-    accentBorder: "border-emerald-500/30",
-    accentBg: "bg-emerald-500/8",
-    accentText: "text-emerald-400",
-    accentBadge: "border-emerald-500/30 bg-emerald-500/15 text-emerald-400",
-    pipelineGradient: "from-emerald-500 to-green-600",
-    stageBorder: "border-emerald-400/20",
-    stageBg: "bg-emerald-950/30",
-    stageNumberGradient: "from-emerald-500 to-green-600",
-    metricAccent: "text-emerald-400",
-    sectionTitleAccent: "text-emerald-300",
+    tabBg: "data-[state=active]:bg-white data-[state=active]:shadow-sm",
+    tabActive: "text-emerald-700",
+    tabText: "text-slate-500 data-[state=active]:text-emerald-700",
+    accent: "bg-emerald-50 text-emerald-700",
+    accentBorder: "border-emerald-200",
+    badgeBg: "bg-emerald-50",
+    badgeText: "text-emerald-700",
+    iconColor: "text-emerald-600",
+    cardBorder: "border-slate-200",
   },
   "healthcare-triage": {
-    tabActive: "data-[active]:bg-teal-900/50 data-[active]:text-teal-100 data-[active]:border-teal-500/40",
-    accentBorder: "border-teal-500/30",
-    accentBg: "bg-teal-500/8",
-    accentText: "text-teal-400",
-    accentBadge: "border-teal-500/30 bg-teal-500/15 text-teal-400",
-    pipelineGradient: "from-teal-500 to-cyan-600",
-    stageBorder: "border-teal-400/20",
-    stageBg: "bg-teal-950/30",
-    stageNumberGradient: "from-teal-500 to-cyan-600",
-    metricAccent: "text-teal-400",
-    sectionTitleAccent: "text-teal-300",
+    tabBg: "data-[state=active]:bg-white data-[state=active]:shadow-sm",
+    tabActive: "text-teal-700",
+    tabText: "text-slate-500 data-[state=active]:text-teal-700",
+    accent: "bg-teal-50 text-teal-700",
+    accentBorder: "border-teal-200",
+    badgeBg: "bg-teal-50",
+    badgeText: "text-teal-700",
+    iconColor: "text-teal-600",
+    cardBorder: "border-slate-200",
   },
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+/* ─── Sub-components ─── */
 
-function formatNumber(n: number): string {
-  return n.toLocaleString("en-US")
-}
-
-function getScheme(id: string): SectorScheme {
-  return sectorSchemes[id] ?? sectorSchemes["logistics-fleet"]!
-}
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-function MetricsBar({ metrics, scheme }: { metrics: EnterpriseVertical["metrics"]; scheme: SectorScheme }) {
+function MetricsBar({
+  metrics,
+  scheme,
+}: {
+  metrics: EnterpriseVertical["metrics"]
+  scheme: SectorScheme
+}) {
   const items = [
-    { label: "Automated Interactions", value: formatNumber(metrics.automatedInteractions) },
-    { label: "Avg. Settlement Time", value: `${metrics.avgSettlementTimeSec}s` },
-    { label: "Hallucination Drift Rate", value: metrics.hallucinationRate },
+    { label: "Automated Interactions", value: metrics.automatedInteractions.toLocaleString() },
+    { label: "Avg. Settlement", value: `${metrics.avgSettlementTimeSec}s` },
+    { label: "Hallucination Rate", value: metrics.hallucinationRate },
   ]
   return (
     <div className="grid grid-cols-3 gap-3">
       {items.map((item) => (
-        <div key={item.label} className="flex flex-col items-center justify-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-4">
-          <span className="text-xl font-bold tracking-tight text-white sm:text-2xl">{item.value}</span>
-          <span className="text-center text-[11px] leading-tight text-muted-foreground sm:text-xs">{item.label}</span>
+        <div
+          key={item.label}
+          className={cn(
+            "rounded-lg border bg-white px-3.5 py-3 text-center shadow-sm transition-shadow hover:shadow-md",
+            scheme.cardBorder,
+          )}
+        >
+          <div className={cn("text-lg font-bold tracking-tight", scheme.tabActive)}>
+            {item.value}
+          </div>
+          <div className="mt-0.5 text-[11px] font-medium text-slate-500">{item.label}</div>
         </div>
       ))}
     </div>
   )
 }
 
-function PipelineStageCard({ stage, index, total, scheme }: { stage: EnterpriseVertical["pipelineStages"][number]; index: number; total: number; scheme: SectorScheme }) {
+function PipelineStageCard({
+  stage,
+  index,
+  total,
+  scheme,
+}: {
+  stage: EnterpriseVertical["pipelineStages"][number]
+  index: number
+  total: number
+  scheme: SectorScheme
+}) {
   return (
     <>
-      <div className={cn("relative flex flex-1 flex-col gap-2.5 rounded-xl border p-4 min-w-0", scheme.stageBorder, scheme.stageBg, "transition-shadow duration-300 hover:shadow-lg")}>
-        <div className="flex items-center gap-2.5">
-          <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white", "bg-gradient-to-br", scheme.stageNumberGradient)}>
-            {index + 1}
-          </span>
-          <span className="text-sm font-semibold text-white">{stage.label}</span>
+      <div className="flex items-start gap-4">
+        {/* Step number */}
+        <div
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-semibold",
+            scheme.accentBorder,
+            scheme.accent,
+          )}
+        >
+          {index + 1}
         </div>
-        <p className="text-xs leading-relaxed text-muted-foreground">{stage.description}</p>
-        <p className="mt-auto border-t border-white/[0.04] pt-2.5 text-[10px] leading-relaxed text-muted-foreground/55 italic">{stage.technicalDetail}</p>
+        <div className="min-w-0 flex-1">
+          <h4 className="text-sm font-semibold text-slate-900">{stage.label}</h4>
+          <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{stage.description}</p>
+        </div>
       </div>
       {index < total - 1 && (
-        <div className="flex shrink-0 items-center justify-center px-0.5 text-muted-foreground/30">
-          <svg className="hidden h-5 w-5 md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-          <svg className="h-5 w-5 md:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
+        <div className="ml-4 h-6 w-px bg-slate-200" />
       )}
     </>
   )
 }
 
-function PipelineDiagram({ stages, scheme }: { stages: EnterpriseVertical["pipelineStages"]; scheme: SectorScheme }) {
+function PipelineDiagram({
+  stages,
+  scheme,
+}: {
+  stages: EnterpriseVertical["pipelineStages"]
+  scheme: SectorScheme
+}) {
   return (
-    <div className="flex flex-col gap-2 md:flex-row md:items-stretch">
-      {stages.map((stage, i) => (
-        <PipelineStageCard key={stage.label} stage={stage} index={i} total={stages.length} scheme={scheme} />
-      ))}
-    </div>
+    <Card className={cn("border bg-white shadow-sm", scheme.cardBorder)}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm text-slate-900">
+          <svg className={cn("h-4 w-4", scheme.iconColor)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          Pipeline Stages
+        </CardTitle>
+        <CardDescription className="text-xs text-slate-400">
+          Autonomous execution flow
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col gap-1">
+          {stages.map((stage, i) => (
+            <PipelineStageCard
+              key={stage.label}
+              stage={stage}
+              index={i}
+              total={stages.length}
+              scheme={scheme}
+            />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
-function TriggersAndLogicColumns({ triggers, logic, scheme }: { triggers: string[]; logic: string[]; scheme: SectorScheme }) {
+function TriggersAndLogicColumns({
+  triggers,
+  logic,
+  scheme,
+}: {
+  triggers: string[]
+  logic: string[]
+  scheme: SectorScheme
+}) {
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      <Card size="sm" className="border-white/[0.06] bg-white/[0.01]">
+      <Card className={cn("border bg-white shadow-sm", scheme.cardBorder)}>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <span className={cn("flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold text-white", "bg-gradient-to-br", scheme.pipelineGradient)}>&darr;</span>
-            Inbound Triggers
+          <CardTitle className="flex items-center gap-2 text-sm text-slate-900">
+            <svg className={cn("h-4 w-4", scheme.iconColor)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Trigger Events
           </CardTitle>
-          <CardDescription>How customer interactions enter the AI system</CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
             {triggers.map((t) => (
-              <li key={t} className="flex items-start gap-2 text-xs text-muted-foreground">
-                <span className={cn("mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full", scheme.accentBg, "ring-1", scheme.accentBorder)} />
+              <li key={t} className="flex items-center gap-2 text-xs text-slate-600">
+                <span className={cn("h-1.5 w-1.5 rounded-full", scheme.iconColor.replace("text-", "bg-"))} />
                 {t}
               </li>
             ))}
           </ul>
         </CardContent>
       </Card>
-      <Card size="sm" className="border-white/[0.06] bg-white/[0.01]">
+      <Card className={cn("border bg-white shadow-sm", scheme.cardBorder)}>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <span className={cn("flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold text-white", "bg-gradient-to-br", scheme.pipelineGradient)}>&#x1F9E0;</span>
+          <CardTitle className="flex items-center gap-2 text-sm text-slate-900">
+            <svg className={cn("h-4 w-4", scheme.iconColor)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
             Core Agent Logic
           </CardTitle>
-          <CardDescription>What the AI agent reasons about at runtime</CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
             {logic.map((l) => (
-              <li key={l} className="flex items-start gap-2 text-xs text-muted-foreground">
-                <span className={cn("mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full", scheme.accentBg, "ring-1", scheme.accentBorder)} />
+              <li key={l} className="flex items-center gap-2 text-xs text-slate-600">
+                <span className={cn("h-1.5 w-1.5 rounded-full", scheme.iconColor.replace("text-", "bg-"))} />
                 {l}
               </li>
             ))}
@@ -196,120 +229,167 @@ function TriggersAndLogicColumns({ triggers, logic, scheme }: { triggers: string
   )
 }
 
-function IntegrationGrid({ integrations, scheme }: { integrations: EnterpriseVertical["integrations"]; scheme: SectorScheme }) {
+function IntegrationGrid({
+  integrations,
+  scheme,
+}: {
+  integrations: EnterpriseVertical["integrations"]
+  scheme: SectorScheme
+}) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {integrations.map((integration) => (
-        <div key={integration.name} className={cn("flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.01] p-4", "transition-shadow duration-300 hover:shadow-md", integration.isProductionProven && scheme.accentBorder)}>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline" className="border-white/10 text-[10px]">{integration.category}</Badge>
+        <div
+          key={integration.name}
+          className={cn(
+            "flex flex-col gap-1.5 rounded-lg border bg-white px-3.5 py-3 shadow-sm transition-shadow hover:shadow-md",
+            scheme.cardBorder,
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-slate-900">{integration.name}</span>
             {integration.isProductionProven && (
-              <Badge variant="outline" className="gap-1 border-green-500/30 bg-green-500/10 text-[10px] text-green-400">
-                <svg className="h-3 w-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-                Production Proven
+              <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Live
               </Badge>
             )}
           </div>
-          <span className="text-sm font-semibold text-white">{integration.name}</span>
-          <p className="text-xs leading-relaxed text-muted-foreground">{integration.description}</p>
+          <span className="text-[11px] text-slate-400">{integration.description}</span>
         </div>
       ))}
     </div>
   )
 }
 
-function CaseStudyCard({ caseStudy, scheme, isFlagship }: { caseStudy: EnterpriseVertical["caseStudy"]; scheme: SectorScheme; isFlagship: boolean }) {
+function CaseStudyCard({
+  caseStudy,
+  scheme,
+  isFlagship,
+}: {
+  caseStudy: EnterpriseVertical["caseStudy"]
+  scheme: SectorScheme
+  isFlagship: boolean
+}) {
   const isProduction = caseStudy.status === "production"
   return (
-    <Card size="sm" className={cn("relative overflow-hidden border-white/[0.08] bg-white/[0.02]", isProduction && "border-amber-500/20", isFlagship && "shadow-[0_0_40px_rgba(245,158,11,0.08)]")}>
-      {isFlagship && <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-500/50 to-transparent" />}
+    <Card
+      className={cn(
+        "relative overflow-hidden border bg-white shadow-sm transition-shadow hover:shadow-md",
+        scheme.cardBorder,
+        isFlagship && "ring-1 ring-amber-200",
+      )}
+    >
       <CardHeader>
-        <div className="flex flex-wrap items-center gap-2">
-          <CardTitle className="text-base text-white">{caseStudy.name}</CardTitle>
-          <Badge variant="outline" className={cn("text-[10px]", isProduction ? "border-green-500/30 bg-green-500/10 text-green-400" : "border-blue-500/30 bg-blue-500/10 text-blue-400")}>
-            {isProduction ? "Production" : "Reference Architecture"}
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle className="text-base text-slate-900">{caseStudy.name}</CardTitle>
+            <CardDescription className="mt-0.5 text-xs text-slate-400">
+              {isProduction ? "Production-Grade Deployment" : "Reference Architecture"}
+            </CardDescription>
+          </div>
+          <Badge
+            variant="outline"
+            className={cn(
+              "shrink-0 text-[10px]",
+              isProduction
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-amber-200 bg-amber-50 text-amber-700",
+            )}
+          >
+            {isProduction ? "Production" : "Pilot"}
           </Badge>
         </div>
-        <CardDescription>{caseStudy.description}</CardDescription>
       </CardHeader>
-      {isFlagship && (
-        <CardContent>
-          <p className={cn("text-xs font-medium", scheme.accentText)}>Active Production-Grade Benchmark — Containerized and deployed at scale.</p>
-        </CardContent>
-      )}
+      <CardContent>
+        <p className="text-xs leading-relaxed text-slate-600">{caseStudy.description}</p>
+      </CardContent>
     </Card>
   )
 }
 
+/* ─── Sector content panel ─── */
+
 function SectorContent({ vertical }: { vertical: EnterpriseVertical }) {
-  const scheme = getScheme(vertical.id)
-  const isFlagship = vertical.id === "logistics-fleet"
-  const isProduction = vertical.caseStudy.status === "production"
+  const scheme = sectorSchemes[vertical.id] ?? sectorSchemes["logistics-fleet"]
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
+      {/* Header */}
       <div>
-        <div className="mb-2 flex flex-wrap items-center gap-3">
-          <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">{vertical.title}</h2>
-          <Badge variant="outline" className={cn("text-[11px]", isProduction ? "border-green-500/30 bg-green-500/10 text-green-400" : "border-blue-500/30 bg-blue-500/10 text-blue-400")}>
-            {isProduction ? "Production" : "Reference Architecture"}
-          </Badge>
-          {isFlagship && <Badge variant="outline" className={scheme.accentBadge}>⭐ Flagship</Badge>}
+        <h3 className="text-xl font-bold text-slate-900 sm:text-2xl">{vertical.title}</h3>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
+          {vertical.description}
+        </p>
+      </div>
+
+      {/* Metrics */}
+      <MetricsBar metrics={vertical.metrics} scheme={scheme} />
+
+      {/* Pipeline + Triggers */}
+      <div className="grid gap-8 lg:grid-cols-5">
+        <div className="lg:col-span-3">
+          <PipelineDiagram stages={vertical.pipelineStages} scheme={scheme} />
         </div>
-        <p className="text-sm font-medium text-muted-foreground sm:text-base">{vertical.subtitle}</p>
-        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted-foreground/80">{vertical.description}</p>
+        <div className="lg:col-span-2">
+          <TriggersAndLogicColumns
+            triggers={vertical.inboundTriggers}
+            logic={vertical.coreAgentLogic}
+            scheme={scheme}
+          />
+        </div>
       </div>
+
+      {/* Integrations */}
       <div>
-        <h3 className={cn("mb-3 text-xs font-semibold uppercase tracking-widest", scheme.sectionTitleAccent)}>Performance Metrics</h3>
-        <MetricsBar metrics={vertical.metrics} scheme={scheme} />
-      </div>
-      <div>
-        <h3 className={cn("mb-4 text-xs font-semibold uppercase tracking-widest", scheme.sectionTitleAccent)}>Pipeline Architecture</h3>
-        <PipelineDiagram stages={vertical.pipelineStages} scheme={scheme} />
-      </div>
-      <div>
-        <h3 className={cn("mb-4 text-xs font-semibold uppercase tracking-widest", scheme.sectionTitleAccent)}>Intake & Intelligence</h3>
-        <TriggersAndLogicColumns triggers={vertical.inboundTriggers} logic={vertical.coreAgentLogic} scheme={scheme} />
-      </div>
-      <div>
-        <h3 className={cn("mb-4 text-xs font-semibold uppercase tracking-widest", scheme.sectionTitleAccent)}>Enterprise Integrations</h3>
+        <h4 className="mb-4 text-sm font-semibold text-slate-900">Integrations</h4>
         <IntegrationGrid integrations={vertical.integrations} scheme={scheme} />
       </div>
+
+      {/* Case study */}
       <div>
-        <h3 className={cn("mb-4 text-xs font-semibold uppercase tracking-widest", scheme.sectionTitleAccent)}>Case Study</h3>
-        <CaseStudyCard caseStudy={vertical.caseStudy} scheme={scheme} isFlagship={isFlagship} />
+        <h4 className="mb-4 text-sm font-semibold text-slate-900">
+          {vertical.id === "logistics-fleet" ? "Flagship Deployment" : "Case Study"}
+        </h4>
+        <CaseStudyCard
+          caseStudy={vertical.caseStudy}
+          scheme={scheme}
+          isFlagship={vertical.id === "logistics-fleet"}
+        />
       </div>
     </div>
   )
 }
 
-// ---------------------------------------------------------------------------
-// Main exported component
-// ---------------------------------------------------------------------------
+/* ─── Root component ─── */
 
 export default function EnterpriseShowcase() {
-  const defaultValue = enterpriseVerticals[0]?.id ?? ""
-  const [activeTab, setActiveTab] = useState<string>(defaultValue)
+  const [activeTab, setActiveTab] = useState(enterpriseVerticals[0]?.id ?? "")
 
   return (
-    <section className="w-full">
+    <section className="w-full" id="enterprise-showcase">
       <Tabs value={activeTab} onValueChange={(v) => v && setActiveTab(v)}>
-        <TabsList className="mb-10 w-full justify-start overflow-x-auto rounded-xl border border-white/[0.06] bg-white/[0.02] p-1">
+        {/* Tabs bar */}
+        <TabsList className="mb-10 w-full justify-start overflow-x-auto rounded-xl border border-slate-200 bg-slate-100/80 p-1">
           {enterpriseVerticals.map((vertical) => {
-            const scheme = getScheme(vertical.id)
+            const scheme = sectorSchemes[vertical.id] ?? sectorSchemes["logistics-fleet"]
             return (
               <TabsTrigger
                 key={vertical.id}
                 value={vertical.id}
-                className={cn("whitespace-nowrap rounded-lg px-4 py-2 text-sm transition-all duration-200", scheme.tabActive)}
+                className={cn(
+                  "rounded-lg px-4 py-2 text-sm font-medium transition-all",
+                  scheme.tabBg,
+                  scheme.tabText,
+                )}
               >
-                {vertical.title}
+                {vertical.title.split(" ")[0]}
               </TabsTrigger>
             )
           })}
         </TabsList>
+
+        {/* Tab panels */}
         {enterpriseVerticals.map((vertical) => (
           <TabsContent key={vertical.id} value={vertical.id}>
             <SectorContent vertical={vertical} />
