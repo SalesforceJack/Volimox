@@ -14,6 +14,7 @@ import nodemailer from "nodemailer"
 
 export interface LeadFormData {
   fullName: string
+  email: string
   companyName: string
   industry: string
   projectScope: string
@@ -30,7 +31,7 @@ function createTransport() {
 
   if (!user || !pass) {
     console.warn(
-      "[mail] SMTP_USER or SMTP_PASS not set \u2014 emails will be logged to console only.",
+      "[mail] SMTP_USER or SMTP_PASS not set. Emails will be logged to console only.",
     )
     return null
   }
@@ -51,10 +52,11 @@ export async function sendLeadNotification(data: LeadFormData): Promise<void> {
   const transport = createTransport()
   const smtpUser = process.env.SMTP_USER
 
-  const subject = `[Volimox] New Lead \u2014 ${data.companyName} (${data.industry})`
+  const subject = `[Volimox] New operation brief: ${data.companyName} (${data.industry})`
 
   const safe = {
     fullName: esc(data.fullName),
+    email: esc(data.email),
     companyName: esc(data.companyName),
     industry: esc(data.industry),
     projectScope: esc(data.projectScope),
@@ -63,22 +65,23 @@ export async function sendLeadNotification(data: LeadFormData): Promise<void> {
 
   const html = [
     "<!DOCTYPE html><html><head><meta charset='utf-8'><style>",
-    "body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;background:#0a0a0b;color:#e4e4e7;padding:32px}",
-    ".container{max-width:560px;margin:0 auto;background:#18181b;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:32px}",
-    "h1{font-size:20px;font-weight:700;color:#f59e0b;margin:0 0 24px}",
+    "body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;background:#f3f3ef;color:#161713;padding:32px}",
+    ".container{max-width:560px;margin:0 auto;background:#fff;border:1px solid #cbc9c0;padding:32px}",
+    "h1{font-size:20px;font-weight:700;color:#161713;margin:0 0 24px}",
     "table{width:100%;border-collapse:collapse}",
-    "td{padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04)}",
-    "td:first-child{color:#a1a1aa;font-size:13px;width:140px;vertical-align:top}",
-    "td:last-child{color:#e4e4e7;font-size:14px}",
-    ".footer{margin-top:24px;font-size:12px;color:#52525b;text-align:center}",
+    "td{padding:10px 0;border-bottom:1px solid #e5e3dc}",
+    "td:first-child{color:#77776f;font-size:13px;width:140px;vertical-align:top}",
+    "td:last-child{color:#161713;font-size:14px}",
+    ".footer{margin-top:24px;font-size:12px;color:#77776f;text-align:center}",
     "</style></head><body><div class='container'>",
-    "<h1>\uD83D\uDE80 New Volimox Lead</h1><table>",
+    "<h1>New Volimox operation brief</h1><table>",
     "<tr><td>Full Name</td><td>", safe.fullName, "</td></tr>",
+    "<tr><td>Work Email</td><td>", safe.email, "</td></tr>",
     "<tr><td>Company</td><td>", safe.companyName, "</td></tr>",
     "<tr><td>Industry</td><td>", safe.industry, "</td></tr>",
     "<tr><td>Project Scope</td><td>", safe.projectScope, "</td></tr>",
     "<tr><td>Est. Monthly Volume</td><td>", safe.estimatedVolume, "</td></tr>",
-    "</table><div class='footer'>Volimox \u2014 Enterprise AI Automation</div>",
+    "</table><div class='footer'>Volimox | Conversation to completion</div>",
     "</div></body></html>",
   ].join("")
 
@@ -88,7 +91,7 @@ export async function sendLeadNotification(data: LeadFormData): Promise<void> {
   console.log("--------------------")
 
   if (!transport) {
-    console.log("[mail] No SMTP configured \u2014 lead logged to console.")
+    console.log("[mail] No SMTP configured. Lead logged to console.")
     return
   }
 
@@ -97,6 +100,7 @@ export async function sendLeadNotification(data: LeadFormData): Promise<void> {
   await transport.sendMail({
     from: `"Volimox Leads" <${smtpUser}>`,
     to,
+    replyTo: data.email,
     subject,
     html,
   })
@@ -110,8 +114,9 @@ export async function sendLeadNotification(data: LeadFormData): Promise<void> {
 
 function esc(text: string): string {
   return text
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">")
-    .replace(/'/g, "'")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;")
 }

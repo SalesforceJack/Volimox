@@ -1,40 +1,50 @@
 import type { Metadata, Viewport } from "next"
-import { Inter } from "next/font/google"
+import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google"
 import "./globals.css"
 
-const inter = Inter({ subsets: ["latin"] })
+const sans = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+})
+
+const mono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  weight: ["400", "500", "600"],
+  display: "swap",
+})
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#f3f3ef",
 }
 
 export const metadata: Metadata = {
-  title: "Volimox — Enterprise AI Automation Agency",
-  description:
-    "Full-stack autonomous conversational systems for logistics, manufacturing, real estate, and healthcare.",
-  keywords: [
-    "enterprise AI",
-    "conversational AI",
-    "autonomous dispatch",
-    "B2B AI orchestration",
-    "AI automation agency",
-  ],
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://volimox.com"),
+  title: {
+    default: "Volimox | Operational AI Systems",
+    template: "%s | Volimox",
+  },
+  description: "Operational AI systems that turn customer conversations into completed work.",
+  openGraph: {
+    title: "Volimox | Conversation to completion",
+    description: "Operational AI systems that quote, collect, schedule, dispatch, and update your business tools.",
+    images: [{ url: "/brand/convergence-network.png", width: 1536, height: 1024 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Volimox | Conversation to completion",
+    description: "Operational AI systems that turn customer conversations into completed work.",
+    images: ["/brand/convergence-network.png"],
+  },
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        suppressHydrationWarning
-        className={`${inter.className} min-h-screen bg-zinc-950 text-white antialiased`}
-      >
-        {children}
-      </body>
+    <html lang="en">
+      <body className={`${sans.variable} ${mono.variable}`}>{children}</body>
     </html>
   )
 }

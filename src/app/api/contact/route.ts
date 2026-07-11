@@ -9,7 +9,7 @@
  *   - POST with Content-Type: application/json
  *   - POST with Content-Type: application/x-www-form-urlencoded (standard HTML forms)
  *
- * Body fields: fullName, companyName, industry, projectScope, estimatedVolume
+ * Body fields: fullName, email, companyName, industry, projectScope, estimatedVolume
  */
 
 import { NextResponse } from "next/server"
@@ -36,16 +36,19 @@ export async function POST(request: Request) {
     }
 
     // --- Field validation ---
-    const fullName = String(body.fullName ?? "").trim()
-    const companyName = String(body.companyName ?? "").trim()
-    const industry = String(body.industry ?? "").trim()
+    const fullName = cleanLine(String(body.fullName ?? ""))
+    const email = cleanLine(String(body.email ?? "")).toLowerCase()
+    const companyName = cleanLine(String(body.companyName ?? ""))
+    const industry = cleanLine(String(body.industry ?? ""))
     const projectScope = String(body.projectScope ?? "").trim()
-    const estimatedVolume = String(body.estimatedVolume ?? "").trim()
+    const estimatedVolume = cleanLine(String(body.estimatedVolume ?? ""))
 
     const missing: string[] = []
     if (!fullName) missing.push("fullName")
+    if (!email) missing.push("email")
     if (!companyName) missing.push("companyName")
     if (!industry) missing.push("industry")
+    if (!projectScope) missing.push("projectScope")
     if (!estimatedVolume) missing.push("estimatedVolume")
 
     if (missing.length > 0) {
@@ -58,9 +61,39 @@ export async function POST(request: Request) {
       )
     }
 
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      return NextResponse.json(
+        { success: false, error: "Please provide a valid work email." },
+        { status: 400 },
+      )
+    }
+
+    const oversized =
+      fullName.length > 120 ||
+      email.length > 254 ||
+      companyName.length > 160 ||
+      industry.length > 120 ||
+      projectScope.length > 4000 ||
+      estimatedVolume.length > 12
+
+    if (oversized) {
+      return NextResponse.json(
+        { success: false, error: "One or more fields exceed the allowed length." },
+        { status: 400 },
+      )
+    }
+
+    if (!/^\d{1,9}$/.test(estimatedVolume) || Number(estimatedVolume) < 1) {
+      return NextResponse.json(
+        { success: false, error: "Please provide a valid monthly request volume." },
+        { status: 400 },
+      )
+    }
+
     // --- Send notification ---
     const lead: LeadFormData = {
       fullName,
+      email,
       companyName,
       industry,
       projectScope,
@@ -82,7 +115,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message:
-        "Thank you. Our engineering team will review your request and provide a customized deployment projection.",
+        "Your operation brief is in the queue. We will review the workflow and follow up with a practical next step.",
     })
   } catch (err) {
     console.error("[api/contact] Error processing lead:", err)
@@ -94,4 +127,8 @@ export async function POST(request: Request) {
       { status: 500 },
     )
   }
+}
+
+function cleanLine(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").trim()
 }

@@ -7,7 +7,25 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)", "sans-serif"],
+        mono: ["var(--font-mono)", "monospace"],
+      },
       colors: {
+        canvas: {
+          DEFAULT: "hsl(var(--canvas))",
+          muted: "hsl(var(--canvas-muted))",
+        },
+        ink: {
+          DEFAULT: "hsl(var(--ink))",
+          muted: "hsl(var(--ink-muted))",
+          faint: "hsl(var(--ink-faint))",
+        },
+        line: {
+          DEFAULT: "hsl(var(--line))",
+          strong: "hsl(var(--line-strong))",
+        },
+        signal: "hsl(var(--signal))",
         background: "hsl(0 0% 3.9%)",
         foreground: "hsl(0 0% 98%)",
         card: {
