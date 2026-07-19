@@ -42,6 +42,10 @@ export async function POST(request: Request) {
     const industry = cleanLine(String(body.industry ?? ""))
     const projectScope = String(body.projectScope ?? "").trim()
     const estimatedVolume = cleanLine(String(body.estimatedVolume ?? ""))
+    const businessPhone = cleanLine(String(body.businessPhone ?? ""))
+    const currentPhoneProvider = cleanLine(String(body.currentPhoneProvider ?? ""))
+    const bookingSystem = cleanLine(String(body.bookingSystem ?? ""))
+    const afterHours = cleanLine(String(body.afterHours ?? ""))
 
     const missing: string[] = []
     if (!fullName) missing.push("fullName")
@@ -74,7 +78,11 @@ export async function POST(request: Request) {
       companyName.length > 160 ||
       industry.length > 120 ||
       projectScope.length > 4000 ||
-      estimatedVolume.length > 12
+      estimatedVolume.length > 12 ||
+      businessPhone.length > 40 ||
+      currentPhoneProvider.length > 120 ||
+      bookingSystem.length > 120 ||
+      afterHours.length > 120
 
     if (oversized) {
       return NextResponse.json(
@@ -90,6 +98,13 @@ export async function POST(request: Request) {
       )
     }
 
+    if (businessPhone && !/^[+()\d .-]{7,40}$/.test(businessPhone)) {
+      return NextResponse.json(
+        { success: false, error: "Please provide a valid business phone number." },
+        { status: 400 },
+      )
+    }
+
     // --- Send notification ---
     const lead: LeadFormData = {
       fullName,
@@ -98,6 +113,10 @@ export async function POST(request: Request) {
       industry,
       projectScope,
       estimatedVolume,
+      businessPhone,
+      currentPhoneProvider,
+      bookingSystem,
+      afterHours,
     }
 
     await sendLeadNotification(lead)

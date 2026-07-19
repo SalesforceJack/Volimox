@@ -19,6 +19,10 @@ export interface LeadFormData {
   industry: string
   projectScope: string
   estimatedVolume: string
+  businessPhone?: string
+  currentPhoneProvider?: string
+  bookingSystem?: string
+  afterHours?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +65,10 @@ export async function sendLeadNotification(data: LeadFormData): Promise<void> {
     industry: esc(data.industry),
     projectScope: esc(data.projectScope),
     estimatedVolume: esc(data.estimatedVolume),
+    businessPhone: esc(data.businessPhone || "Not provided"),
+    currentPhoneProvider: esc(data.currentPhoneProvider || "Not provided"),
+    bookingSystem: esc(data.bookingSystem || "Not provided"),
+    afterHours: esc(data.afterHours || "Not provided"),
   }
 
   const html = [
@@ -79,6 +87,10 @@ export async function sendLeadNotification(data: LeadFormData): Promise<void> {
     "<tr><td>Work Email</td><td>", safe.email, "</td></tr>",
     "<tr><td>Company</td><td>", safe.companyName, "</td></tr>",
     "<tr><td>Industry</td><td>", safe.industry, "</td></tr>",
+    "<tr><td>Business Phone</td><td>", safe.businessPhone, "</td></tr>",
+    "<tr><td>Phone Provider</td><td>", safe.currentPhoneProvider, "</td></tr>",
+    "<tr><td>Booking System</td><td>", safe.bookingSystem, "</td></tr>",
+    "<tr><td>Missed Calls</td><td>", safe.afterHours, "</td></tr>",
     "<tr><td>Project Scope</td><td>", safe.projectScope, "</td></tr>",
     "<tr><td>Est. Monthly Volume</td><td>", safe.estimatedVolume, "</td></tr>",
     "</table><div class='footer'>Volimox | Conversation to completion</div>",
