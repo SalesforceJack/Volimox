@@ -32,6 +32,12 @@ export async function POST(request: Request) {
       const replyStep = Number(url.searchParams.get("replyStep") || "0")
       if (!validateInboundReplyCallback({ sessionId: session.id, effectId, sourceSid, replyStep })) return new Response("OK")
 
+      const knownReplyRecord = store ? await store.get(effectId).catch(() => null) : null
+      if (knownReplyRecord?.providerId && knownReplyRecord.providerId !== sid) {
+        console.error("[follow-up-demo/reply-status-conflict] Provider SID mismatch")
+        return new Response("OK")
+      }
+
       const body = inboundReplyBody(session, replyStep)
       let record: SideEffectRecord = {
         id: effectId,
@@ -58,6 +64,10 @@ export async function POST(request: Request) {
             ttlHours: 24,
           })
         } catch (error) {
+          if (error instanceof Error && error.message.endsWith("_conflict")) {
+            console.error("[follow-up-demo/reply-status-conflict]", error.message)
+            return new Response("OK")
+          }
           console.error("[follow-up-demo/reply-status-reconciliation]", error)
         }
       }
