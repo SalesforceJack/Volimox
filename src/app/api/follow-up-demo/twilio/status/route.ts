@@ -1,7 +1,7 @@
 import { deterministicEvent, getFollowUpSession, projectSideEffectRecord, saveFollowUpSession, upsertEvent } from "@/lib/follow-up-demo"
 import { verifyTwilioSignature } from "@/lib/twilio-demo"
 import { triggerMissedCallRecovery } from "@/lib/follow-up-demo-processor"
-import { createSideEffectStore, deriveSideEffectId } from "@/lib/side-effect-machine"
+import { createSideEffectStore, deriveSideEffectId, type SideEffectRecord } from "@/lib/side-effect-machine"
 import { demoDb, getDemoTenantId, getSideEffectsCollection } from "@/lib/firebase-admin"
 import { inboundReplyBody, projectInboundReplySideEffect, reconcileInboundReplySideEffect, validateInboundReplyCallback } from "@/lib/inbound-reply-reconciliation"
 
@@ -33,11 +33,11 @@ export async function POST(request: Request) {
       if (!validateInboundReplyCallback({ sessionId: session.id, effectId, sourceSid, replyStep })) return new Response("OK")
 
       const body = inboundReplyBody(session, replyStep)
-      let record = {
+      let record: SideEffectRecord = {
         id: effectId,
         operationType: "inbound-reply-sms",
         sessionId: session.id,
-        state: "sent" as const,
+        state: "sent",
         providerId: sid,
         providerMetadata: {
           body,
