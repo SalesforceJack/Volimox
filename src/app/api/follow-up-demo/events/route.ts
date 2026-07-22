@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getFollowUpSession, publicSession, readSessionToken } from "@/lib/follow-up-demo"
+import { deterministicEvent, getFollowUpSession, publicSession, readSessionToken, upsertEvent } from "@/lib/follow-up-demo"
 import { listInboundSms, getDemoCallStatus } from "@/lib/twilio-demo"
 import { processInboundDemoSms, triggerMissedCallRecovery } from "@/lib/follow-up-demo-processor"
 import { acquireProviderSyncLease, releaseProviderSyncLease } from "@/lib/provider-sync-lease"
@@ -39,9 +39,7 @@ export async function GET(request: Request) {
 
     if (
       session.status !== "completed" &&
-      session.twilioCallSid &&
-      !session.messages.some((item) => item.direction === "outbound") &&
-      !session.events.some((item) => item.type === "sms.recovery_started")
+      session.twilioCallSid
     ) {
       try {
         const callResult = await getDemoCallStatus(session.twilioCallSid)
@@ -51,15 +49,7 @@ export async function GET(request: Request) {
           callResult.answeredBy === "fax"
         ) {
           const detected = callResult.answeredBy || callResult.status
-          session.events.push({
-            id: `call-poll-${detected}`,
-            type: `call.${detected}`,
-            label: `Call ${detected}`,
-            detail: "Detected from Twilio call status",
-            channel: "call",
-            status: "failed",
-            createdAt: new Date().toISOString(),
-          })
+          upsertEvent(session, deterministicEvent(`call-poll-${session.twilioCallSid}-${detected}`, `call.${detected}`, `Call ${detected}`, "Detected from Twilio call status.", "call", "failed"))
           session = await triggerMissedCallRecovery(session, request)
         }
       } catch (error) {

@@ -17,3 +17,4 @@ Thumbs.db
 
 # Agent debug logs (local only, not part of the repository)
 .codex-*.log
+firestore-debug.log

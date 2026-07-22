@@ -93,21 +93,24 @@ export function demoDb(): Firestore | null {
   if (_volimoxDb) return _volimoxDb
 
   const account = serviceAccount()
-  if (!account) return null
+  const emulatorMode = Boolean(process.env.FIRESTORE_EMULATOR_HOST?.trim()) && process.env.NODE_ENV !== "production"
+  if (!account && !emulatorMode) return null
 
   const expectedProjectId = getExpectedProjectId()
   const appName = `volimox-app-${expectedProjectId}`
   const existingApp = getApps().find((app) => app.name === appName)
 
   const app = existingApp || initializeApp(
-    {
-      credential: cert({
-        projectId: account.project_id,
-        clientEmail: account.client_email,
-        privateKey: account.private_key,
-      }),
-      projectId: account.project_id || expectedProjectId,
-    },
+    account
+      ? {
+          credential: cert({
+            projectId: account.project_id,
+            clientEmail: account.client_email,
+            privateKey: account.private_key,
+          }),
+          projectId: account.project_id || expectedProjectId,
+        }
+      : { projectId: expectedProjectId },
     appName,
   )
 
@@ -164,6 +167,10 @@ export function getSideEffectsCollection(db: Firestore, tenantId?: string) {
   return getTenantDocRef(db, tenantId).collection("sideEffects")
 }
 
+export function getContactLeadsCollection(db: Firestore, tenantId?: string) {
+  return getTenantDocRef(db, tenantId).collection("contactLeads")
+}
+
 export function getRateLimitsCollection(db: Firestore, tenantId?: string) {
   return getTenantDocRef(db, tenantId).collection("rateLimits")
 }
@@ -183,6 +190,7 @@ export function getRateLimitsCollection(db: Firestore, tenantId?: string) {
  *   - tenants/{tenantId}/demoLeads           — auto-delete aged demo leads (90 days)
  *   - tenants/{tenantId}/demoAgentLeads      — auto-delete aged agent leads (90 days)
  *   - tenants/{tenantId}/demoReservations    — auto-delete aged reservations (90 days)
+ *   - tenants/{tenantId}/contactLeads        — auto-delete aged contact submissions (90 days)
  *
  * These policies are NOT currently enabled. They must be configured via the
  * Firebase Console or gcloud CLI before TTL deletion is active.

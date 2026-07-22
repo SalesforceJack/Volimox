@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       'callback-call',
       async () => {
         const res = await startDemoCall({ to: session.phone, twimlUrl, statusCallback })
-        return { value: { status: res.status }, providerId: res.sid }
+        return { value: { status: res.status }, providerId: res.sid, providerMetadata: { from: res.from, status: res.status } }
       },
       {
         sessionId: session.id,
@@ -52,6 +52,7 @@ export async function POST(request: Request) {
     )
 
     if (outcome.kind === "executed") {
+      session.callbackCallSid = outcome.providerId
       session.callbackCallState = "started"
       session.events.push(event("call.started", "Demo call started", `Twilio call ${outcome.value.status}`, "call", "running"))
     } else if (outcome.kind === "already_completed" || outcome.kind === "already_dispatching") {

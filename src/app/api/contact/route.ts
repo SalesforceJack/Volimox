@@ -20,6 +20,8 @@ import { checkDurableRateLimit } from "@/lib/durable-rate-limit"
 import { createSideEffectStore, executeSideEffect, ProviderRejectedError, SideEffectPreflightError } from "@/lib/side-effect-machine"
 import { demoDb, getSideEffectsCollection } from "@/lib/firebase-admin"
 import { deriveContactLeadEffectId } from "@/lib/contact-idempotency"
+import { persistContactLead, updateContactLeadNotification, type ContactLeadNotificationStatus } from "@/lib/contact-lead"
+import type { SideEffectOutcome } from "@/lib/side-effect-machine"
 
 // ---------------------------------------------------------------------------
 // POST handler
@@ -101,7 +103,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // --- Send notification ---
+    // --- Persist the lead before attempting any notification side effect. ---
     const lead: LeadFormData = {
       fullName,
       email,
@@ -113,37 +115,73 @@ export async function POST(request: Request) {
 
     const effectId = deriveContactLeadEffectId(lead)
     const db = demoDb()
+    if (!db) {
+      return NextResponse.json({ success: false, error: "Your brief could not be stored safely. Please try again later." }, { status: 503 })
+    }
+
+    try {
+      await persistContactLead(db, lead)
+    } catch (error) {
+      console.error("[api/contact] Lead persistence failed", error instanceof Error ? error.message : "unknown")
+      return NextResponse.json({ success: false, error: "Your brief could not be stored safely. Please try again later." }, { status: 503 })
+    }
+
     const collection = db ? getSideEffectsCollection(db) : null
-
-    const store = createSideEffectStore(db, collection)
-
-    const emailOutcome = await executeSideEffect(
-      store,
-      effectId,
-      "contact-lead-email",
-      async () => {
-        const res = await sendLeadNotification(lead)
-        if (res.sent === false) throw new ProviderRejectedError(res.reasonCode)
-        return { value: res, providerId: res.providerId }
-      },
-      {
-        preflight: () => {
-          if (!validateSmtpConfig().configured) throw new SideEffectPreflightError("not_configured")
+    let emailOutcome: SideEffectOutcome<Awaited<ReturnType<typeof sendLeadNotification>>> | null = null
+    try {
+      const store = createSideEffectStore(db, collection)
+      emailOutcome = await executeSideEffect(
+        store,
+        effectId,
+        "contact-lead-email",
+        async () => {
+          const res = await sendLeadNotification(lead)
+          if (res.sent === false) throw new ProviderRejectedError(res.reasonCode)
+          return { value: res, providerId: res.providerId }
         },
-      },
-    )
-
-    if (emailOutcome.kind === "already_completed" || emailOutcome.kind === "already_dispatching") {
-      return NextResponse.json({ success: true, message: "Your operation brief has already been submitted." })
+        {
+          ttlHours: 90 * 24,
+          preflight: () => {
+            if (!validateSmtpConfig().configured) throw new SideEffectPreflightError("not_configured")
+          },
+        },
+      )
+    } catch (error) {
+      console.error("[api/contact] Notification side effect unavailable", error instanceof Error ? error.message : "unknown")
     }
 
-    if (emailOutcome.kind === "persistence_unavailable") {
-      console.error("[api/contact] Side-effect persistence unavailable")
-      return NextResponse.json({ success: false, error: "Internal server error. Please try again later." }, { status: 500 })
+    let notificationStatus: ContactLeadNotificationStatus = "failed"
+    let responseMessage = "Your operation brief was captured. Notification delivery is temporarily unavailable, but the team can still follow up."
+    let responseStatus = 202
+    if (emailOutcome?.kind === "executed" || emailOutcome?.kind === "already_completed") {
+      notificationStatus = "sent"
+      responseMessage = "Your operation brief was captured and the team was notified. We will follow up with a practical next step."
+      responseStatus = 200
+    } else if (emailOutcome?.kind === "already_dispatching") {
+      notificationStatus = "pending"
+      responseMessage = "Your operation brief was captured. Notification delivery is still being verified."
+    } else if (emailOutcome?.kind === "uncertain") {
+      notificationStatus = "uncertain_after_dispatch"
+      responseMessage = "Your operation brief was captured. Notification delivery is being verified."
+    } else if (emailOutcome?.kind === "reconciliation_required") {
+      notificationStatus = "reconciliation_required"
+      responseMessage = "Your operation brief was captured. Notification delivery needs verification."
+    } else if (emailOutcome?.kind === "preflight_failed" || emailOutcome?.kind === "provider_rejected" || emailOutcome?.kind === "persistence_unavailable" || !emailOutcome) {
+      notificationStatus = "failed"
     }
 
-    if (emailOutcome.kind === "provider_rejected") {
-      return NextResponse.json({ success: false, error: "Service temporarily unavailable. Please try again later." }, { status: 503 })
+    try {
+      const providerId = emailOutcome?.kind === "executed"
+        ? emailOutcome.providerId
+        : emailOutcome?.kind === "already_completed"
+          ? emailOutcome.record.providerId
+          : undefined
+      await updateContactLeadNotification(db, effectId, notificationStatus, providerId)
+    } catch (error) {
+      console.error("[api/contact] Notification status persistence failed", error instanceof Error ? error.message : "unknown")
+      notificationStatus = "reconciliation_required"
+      responseMessage = "Your operation brief was captured. Notification delivery status is being verified."
+      responseStatus = 202
     }
 
     // --- Redirect to thank-you page for HTML form submissions ---
@@ -158,9 +196,9 @@ export async function POST(request: Request) {
     // API call — return JSON
     return NextResponse.json({
       success: true,
-      message:
-        "Your operation brief is in the queue. We will review the workflow and follow up with a practical next step.",
-    })
+      message: responseMessage,
+      notificationStatus,
+    }, { status: responseStatus })
   } catch (err) {
     console.error("[api/contact] Error processing lead:", err instanceof Error ? err.message : "unknown")
     return NextResponse.json(

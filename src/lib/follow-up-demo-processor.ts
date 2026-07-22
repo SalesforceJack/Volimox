@@ -1,5 +1,5 @@
 import { sendLeadNotification, validateSmtpConfig } from "@/lib/mail"
-import { event, message, publicBaseUrl, saveFollowUpSession, type FollowUpDemoSession } from "@/lib/follow-up-demo"
+import { deterministicEvent, message, projectSideEffectRecord, recoverySmsBody, scheduledFollowUpSmsBody, upsertEvent, publicBaseUrl, saveFollowUpSession, type FollowUpDemoSession } from "@/lib/follow-up-demo"
 import { cancelScheduledSms, sendFollowUpSms, validateTwilioConfig, validateTwilioSchedulingConfig } from "@/lib/twilio-demo"
 import { createSideEffectStore, executeSideEffect, deriveSideEffectId, ProviderRejectedError, SideEffectPreflightError } from "@/lib/side-effect-machine"
 import { demoDb, getDemoTenantId, getSideEffectsCollection, getInboundSmsClaimsCollection } from "@/lib/firebase-admin"
@@ -7,11 +7,10 @@ import { demoDb, getDemoTenantId, getSideEffectsCollection, getInboundSmsClaimsC
 const OPT_OUT_KEYWORDS = /^(stop|stopall|unsubscribe|cancel|end|quit)\b/i
 
 export async function triggerMissedCallRecovery(session: FollowUpDemoSession, request: Request) {
-  if (session.messages.some((item) => item.direction === "outbound") || session.events.some((item) => item.type === "sms.recovery_started")) return session
-  session.events.push(event("sms.recovery_started", "Text-back triggered", "Waiting for the first SMS to leave Twilio", "sms", "running"))
+  const recoveryEventId = `recovery-started-${session.id}`
+  upsertEvent(session, deterministicEvent(recoveryEventId, "sms.recovery_started", "Text-back triggered", "The missed-call text is being prepared.", "sms", "running"))
   await saveFollowUpSession(session)
-  const firstName = session.fullName.split(" ")[0]
-  const smsBody = `Hi ${firstName}, this is Example ${session.businessType}. Sorry we missed your call. What can we help you with today? Reply STOP to opt out.`
+  const smsBody = recoverySmsBody(session)
 
   const db = demoDb()
   const tenantId = getDemoTenantId()
@@ -19,16 +18,15 @@ export async function triggerMissedCallRecovery(session: FollowUpDemoSession, re
 
   const statusCallback = `${publicBaseUrl(request)}/api/follow-up-demo/twilio/status?sessionId=${encodeURIComponent(session.id)}&channel=sms`
 
-  const store = createSideEffectStore(db, sideEffectsRef)
-
   try {
+    const store = createSideEffectStore(db, sideEffectsRef)
     const recoveryOutcome = await executeSideEffect(
       store,
       deriveSideEffectId(session.id, 'recovery-sms'),
       'recovery-sms',
       async () => {
         const res = await sendFollowUpSms({ to: session.phone, body: smsBody, statusCallback })
-        return { value: res, providerId: res.sid }
+        return { value: res, providerId: res.sid, providerMetadata: { from: res.from, status: res.status } }
       },
       {
         sessionId: session.id,
@@ -39,39 +37,80 @@ export async function triggerMissedCallRecovery(session: FollowUpDemoSession, re
       },
     )
 
-    if (recoveryOutcome.kind === "executed" && recoveryOutcome.value) {
-      const sms = recoveryOutcome.value
-      session.twilioNumber = sms.from
-      session.messages.push(message("outbound", smsBody, sms.status, sms.sid))
-      session.events.push(event("sms.sent", "Missed-call text sent", "Text-back triggered after Twilio reported the call was missed", "sms", "completed"))
-
-      try {
-        const scheduledOutcome = await executeSideEffect(
-          store,
-          deriveSideEffectId(session.id, 'scheduled-follow-up-sms'),
-          'scheduled-follow-up-sms',
-          async () => {
-            const res = await sendFollowUpSms({ to: session.phone, body: `Just checking in from Example ${session.businessType}. Do you still need help? Reply here and we will capture the details for the team.`, statusCallback, scheduleAt: new Date(Date.now() + 20 * 60 * 1000) })
-            return { value: res, providerId: res.sid }
-          },
-          {
-            sessionId: session.id,
-            preflight: () => {
-              const config = validateTwilioSchedulingConfig()
-              if (!config.configured) throw new SideEffectPreflightError(config.reasonCode || "not_configured")
-            },
-          },
-        )
-        if (scheduledOutcome.kind === "executed" && scheduledOutcome.value) {
-          session.scheduledMessageSid = scheduledOutcome.value.sid
-          session.events.push(event("follow_up.scheduled", "Follow-up scheduled", "Automatically cancels when the customer replies", "sms", "waiting"))
-        }
-      } catch (scheduleError) {
-        session.events.push(event("follow_up.unavailable", "Follow-up scheduling unavailable", scheduleError instanceof Error ? scheduleError.message : "Scheduling failed", "sms", "failed"))
-      }
+    let recoveryCompleted = false
+    if (recoveryOutcome.kind === "executed") {
+      projectSideEffectRecord(session, "recovery-sms", {
+        id: deriveSideEffectId(session.id, "recovery-sms"),
+        operationType: "recovery-sms",
+        state: "sent",
+        providerId: recoveryOutcome.providerId,
+        providerMetadata: recoveryOutcome.providerMetadata,
+      })
+      recoveryCompleted = true
+    } else if (recoveryOutcome.kind === "already_completed") {
+      projectSideEffectRecord(session, "recovery-sms", recoveryOutcome.record)
+      recoveryCompleted = ["sent", "started", "completed"].includes(recoveryOutcome.record.state)
+    } else if (recoveryOutcome.kind === "already_dispatching") {
+      projectSideEffectRecord(session, "recovery-sms", recoveryOutcome.record)
+    } else if (recoveryOutcome.kind === "uncertain") {
+      projectSideEffectRecord(session, "recovery-sms", { id: recoveryEventId, operationType: "recovery-sms", state: "uncertain_after_dispatch" })
+    } else if (recoveryOutcome.kind === "reconciliation_required") {
+      projectSideEffectRecord(session, "recovery-sms", { id: recoveryEventId, operationType: "recovery-sms", state: "uncertain_after_dispatch", providerId: recoveryOutcome.providerId, providerMetadata: recoveryOutcome.providerMetadata })
+    } else if (recoveryOutcome.kind === "preflight_failed" || recoveryOutcome.kind === "provider_rejected" || recoveryOutcome.kind === "persistence_unavailable") {
+      projectSideEffectRecord(session, "recovery-sms", { id: recoveryEventId, operationType: "recovery-sms", state: "provider_rejected" })
     }
-  } catch (smsError) {
-    session.events.push(event("sms.failed", "SMS could not be sent", "Twilio request could not be completed", "sms", "failed"))
+
+    if (recoveryCompleted) {
+      upsertEvent(session, deterministicEvent(recoveryEventId, "sms.recovery_started", "Text-back triggered", "The missed-call text was accepted by Twilio.", "sms", "completed"))
+      upsertEvent(session, deterministicEvent(`recovery-sms-sent-${session.id}`, "sms.sent", "Missed-call text sent", "Text-back triggered after Twilio reported the call was missed.", "sms", "completed"))
+
+      const scheduledOutcome = await executeSideEffect(
+        store,
+        deriveSideEffectId(session.id, "scheduled-follow-up-sms"),
+        "scheduled-follow-up-sms",
+        async () => {
+          const res = await sendFollowUpSms({ to: session.phone, body: scheduledFollowUpSmsBody(session), statusCallback, scheduleAt: new Date(Date.now() + 20 * 60 * 1000) })
+          return { value: res, providerId: res.sid, providerMetadata: { from: res.from, status: res.status } }
+        },
+        {
+          sessionId: session.id,
+          preflight: () => {
+            const config = validateTwilioSchedulingConfig()
+            if (!config.configured) throw new SideEffectPreflightError(config.reasonCode || "not_configured")
+          },
+        },
+      )
+      if (scheduledOutcome.kind === "executed") {
+        projectSideEffectRecord(session, "scheduled-follow-up-sms", {
+          id: deriveSideEffectId(session.id, "scheduled-follow-up-sms"),
+          operationType: "scheduled-follow-up-sms",
+          state: "sent",
+          providerId: scheduledOutcome.providerId,
+          providerMetadata: scheduledOutcome.providerMetadata,
+        })
+        upsertEvent(session, deterministicEvent(`follow-up-scheduled-${session.id}`, "follow_up.scheduled", "Follow-up scheduled", "Automatically cancels when the customer replies.", "sms", "waiting"))
+      } else if (scheduledOutcome.kind === "already_completed") {
+        projectSideEffectRecord(session, "scheduled-follow-up-sms", scheduledOutcome.record)
+        upsertEvent(session, deterministicEvent(`follow-up-scheduled-${session.id}`, "follow_up.scheduled", "Follow-up scheduled", "Automatically cancels when the customer replies.", "sms", "waiting"))
+      } else if (scheduledOutcome.kind === "already_dispatching") {
+        projectSideEffectRecord(session, "scheduled-follow-up-sms", scheduledOutcome.record)
+        upsertEvent(session, deterministicEvent(`follow-up-scheduled-${session.id}`, "follow_up.scheduled", "Follow-up scheduling in progress", "Twilio is still confirming the scheduled message.", "sms", "running"))
+      } else if (scheduledOutcome.kind === "uncertain" || scheduledOutcome.kind === "reconciliation_required") {
+        if (scheduledOutcome.kind === "reconciliation_required") projectSideEffectRecord(session, "scheduled-follow-up-sms", { id: recoveryEventId, operationType: "scheduled-follow-up-sms", state: "uncertain_after_dispatch", providerId: scheduledOutcome.providerId, providerMetadata: scheduledOutcome.providerMetadata })
+        upsertEvent(session, deterministicEvent(`follow-up-scheduling-uncertain-${session.id}`, "follow_up.cancel_uncertain", "Follow-up status is being verified", "The scheduled message was not retried because Twilio confirmation is incomplete.", "sms", "failed"))
+      } else {
+        upsertEvent(session, deterministicEvent(`follow-up-unavailable-${session.id}`, "follow_up.unavailable", "Follow-up scheduling unavailable", "The recovery text was captured, but the optional follow-up could not be scheduled.", "sms", "failed"))
+      }
+    } else if (recoveryOutcome.kind === "already_dispatching") {
+      upsertEvent(session, deterministicEvent(recoveryEventId, "sms.recovery_started", "Text-back in progress", "Twilio is still confirming the missed-call text.", "sms", "running"))
+    } else if (recoveryOutcome.kind === "uncertain" || recoveryOutcome.kind === "reconciliation_required") {
+      upsertEvent(session, deterministicEvent(recoveryEventId, "sms.recovery_uncertain", "Text-back status is being verified", "The text-back was not retried because provider confirmation is incomplete.", "sms", "failed"))
+    } else {
+      upsertEvent(session, deterministicEvent(recoveryEventId, "sms.failed", "SMS could not be sent", "The text-back could not be started with the current configuration.", "sms", "failed"))
+    }
+  } catch {
+    session.recoverySmsState = "uncertain_after_dispatch"
+    upsertEvent(session, deterministicEvent(`recovery-uncertain-${session.id}`, "sms.recovery_uncertain", "Text-back status is being verified", "The text-back state could not be confirmed.", "sms", "failed"))
   }
   await saveFollowUpSession(session)
   return session
@@ -100,21 +139,25 @@ export async function processInboundDemoSms(session: FollowUpDemoSession, rawBod
     }
   }
 
-  session.messages.push(message("inbound", body, "received", sid))
+  const inboundMessage = message("inbound", body, "received", sid)
+  if (sid) inboundMessage.id = `inbound-${sid}`
+  session.messages.push(inboundMessage)
   session.status = "engaged"
-  session.events.push(event("customer.replied", "Customer replied", body, "sms", "completed"))
+  upsertEvent(session, deterministicEvent(sid ? `customer-replied-${sid}` : `customer-replied-${session.id}-${session.messages.length}`, "customer.replied", "Customer replied", body, "sms", "completed"))
 
   if (OPT_OUT_KEYWORDS.test(body)) {
     session.status = "completed"
-    session.events.push(event("consent.revoked", "Messaging stopped", "Customer opted out", "system", "completed"))
+    upsertEvent(session, deterministicEvent(sid ? `consent-revoked-${sid}` : `consent-revoked-${session.id}`, "consent.revoked", "Messaging stopped", "Customer opted out", "system", "completed"))
 
     if (session.scheduledMessageSid) {
       try {
         await cancelScheduledSms(session.scheduledMessageSid)
-        session.events.push(event("follow_up.canceled", "Follow-up canceled", "Canceled because the customer opted out", "sms", "completed"))
+        session.scheduledMessageStatus = "canceled"
+        upsertEvent(session, deterministicEvent(`follow-up-canceled-${session.id}`, "follow_up.canceled", "Follow-up canceled", "Canceled because the customer opted out.", "sms", "completed"))
         session.scheduledMessageSid = undefined
       } catch (error) {
-        session.events.push(event("follow_up.cancel_uncertain", "Follow-up cancel uncertain", "Scheduled message cancel could not be confirmed", "sms", "failed"))
+        session.scheduledMessageStatus = "cancellation_uncertain"
+        upsertEvent(session, deterministicEvent(`follow-up-cancel-uncertain-${session.id}`, "follow_up.cancel_uncertain", "Follow-up cancel uncertain", "The scheduled message was not confirmed canceled.", "sms", "failed"))
         console.error("[follow-up-demo/cancel-scheduled]", error)
       }
     }
@@ -130,10 +173,13 @@ export async function processInboundDemoSms(session: FollowUpDemoSession, rawBod
   if (session.scheduledMessageSid) {
     try {
       await cancelScheduledSms(session.scheduledMessageSid)
-      session.events = session.events.map((item) => item.type === "follow_up.scheduled" ? { ...item, status: "completed", detail: "Canceled because the customer replied" } : item)
-      session.scheduledMessageSid = undefined
-    } catch (error) {
-      console.error("[follow-up-demo/cancel-scheduled]", error)
+        session.scheduledMessageStatus = "canceled"
+        session.events = session.events.map((item) => item.type === "follow_up.scheduled" ? { ...item, status: "completed", detail: "Canceled because the customer replied." } : item)
+        session.scheduledMessageSid = undefined
+      } catch (error) {
+        session.scheduledMessageStatus = "cancellation_uncertain"
+        upsertEvent(session, deterministicEvent(`follow-up-cancel-uncertain-${session.id}`, "follow_up.cancel_uncertain", "Follow-up cancel uncertain", "The scheduled message was not confirmed canceled.", "sms", "failed"))
+        console.error("[follow-up-demo/cancel-scheduled]", error)
     }
   }
 
@@ -153,11 +199,11 @@ export async function processInboundDemoSms(session: FollowUpDemoSession, rawBod
 
     if (!session.twilioNumber && sms.from) session.twilioNumber = sms.from
     session.messages.push(message("outbound", reply, sms.status, sms.sid))
-    session.events.push(event("agent.replied", "Automated reply sent", inboundCount === 1 ? "Address and urgency requested" : inboundCount === 2 ? "Service timing requested" : "Lead intake completed", "sms", "completed"))
+    upsertEvent(session, deterministicEvent(replyProviderId ? `agent-replied-${replyProviderId}` : `agent-replied-${session.id}-${inboundCount}`, "agent.replied", "Automated reply sent", inboundCount === 1 ? "Address and urgency requested" : inboundCount === 2 ? "Service timing requested" : "Lead intake completed", "sms", "completed"))
 
     if (inboundCount >= 3) {
       session.status = "completed"
-      session.events.push(event("lead.created", "Job lead ready", `${session.businessType} request routed with conversation context`, "lead", "completed"))
+        upsertEvent(session, deterministicEvent(`lead-created-${session.id}`, "lead.created", "Job lead ready", `${session.businessType} request routed with conversation context`, "lead", "completed"))
 
       const sideEffectsRef = db ? getSideEffectsCollection(db, tenantId) : null
       const store = createSideEffectStore(db, sideEffectsRef)
@@ -191,7 +237,7 @@ export async function processInboundDemoSms(session: FollowUpDemoSession, rawBod
         console.error("[follow-up-demo/inbound-uncertain]", markError)
       })
     }
-    session.events.push(event("agent.reply_failed", "Automated reply failed", "The reply SMS could not be delivered", "sms", "failed"))
+    upsertEvent(session, deterministicEvent(sid ? `agent-reply-failed-${sid}` : `agent-reply-failed-${session.id}-${inboundCount}`, "agent.reply_failed", "Automated reply failed", "The reply SMS could not be delivered.", "sms", "failed"))
   }
   await saveFollowUpSession(session)
   if (replyProviderId && claimDocId && claimOwnerId) {

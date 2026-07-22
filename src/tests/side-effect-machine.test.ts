@@ -29,7 +29,7 @@ import { canReleaseProviderSyncLease, providerSyncBlockReason } from "../lib/pro
 import { hashRateLimitKey } from "../lib/durable-rate-limit.js"
 import { isDefinitiveSmtpRejection } from "../lib/mail.js"
 import { validateTwilioSchedulingConfig } from "../lib/twilio-demo.js"
-import { createFollowUpSession, projectSideEffectRecord } from "../lib/follow-up-demo.js"
+import { canonicalizeFollowUpPayload, createFollowUpSession, deriveFollowUpRequestHash, mergeFollowUpSession, mergeOperationState, mergeSessionStatus, projectSideEffectRecord, upsertEvent } from "../lib/follow-up-demo.js"
 import { deriveContactLeadEffectId } from "../lib/contact-idempotency.js"
 import { withinDemoRateLimit } from "../lib/demo-rate-limit.js"
 
@@ -479,6 +479,118 @@ async function runTests() {
     assert(session.twilioCallSid === "CA123", "call provider ID should be restored")
     assert(session.initialEmailState === "sent", "email state should be restored")
     assert(session.leadNotificationState === "sent", "lead state should be restored")
+  })
+
+  await test("recovery and scheduled side-effects reconstruct provider state without duplicate messages", () => {
+    const session = createFollowUpSession({
+      fullName: "Test User",
+      email: "test@example.com",
+      phone: "+12025550123",
+      companyName: "Test Company",
+      businessType: "Plumbing",
+      consentSms: true,
+      consentEmail: true,
+      consentCall: true,
+    })
+    projectSideEffectRecord(session, "recovery-sms", {
+      id: "recovery",
+      operationType: "recovery-sms",
+      state: "sent",
+      providerId: "SM-recovery",
+      providerMetadata: { from: "+12025550199", status: "queued" },
+    })
+    projectSideEffectRecord(session, "recovery-sms", {
+      id: "recovery",
+      operationType: "recovery-sms",
+      state: "sent",
+      providerId: "SM-recovery",
+      providerMetadata: { from: "+12025550199", status: "delivered" },
+    })
+    projectSideEffectRecord(session, "scheduled-follow-up-sms", {
+      id: "scheduled",
+      operationType: "scheduled-follow-up-sms",
+      state: "sent",
+      providerId: "SM-scheduled",
+    })
+    assert(session.recoverySmsState === "sent", "recovery state should be reconstructed")
+    assert(session.twilioNumber === "+12025550199", "recovery sender should be reconstructed")
+    assert(session.messages.filter((item) => item.sid === "SM-recovery").length === 1, "recovery message should be idempotent")
+    assert(session.messages.find((item) => item.sid === "SM-recovery")?.status === "delivered", "latest provider status should be retained")
+    assert(session.scheduledMessageSid === "SM-scheduled", "scheduled SID should be reconstructed")
+  })
+
+  await test("operation and session merge helpers reject stale regressions", () => {
+    assert(mergeOperationState("dispatching", "failed") === "failed", "definitive failure must beat dispatching")
+    assert(mergeOperationState("completed", "pending") === "completed", "completed must never regress")
+    assert(mergeOperationState("uncertain_after_dispatch", "dispatching") === "uncertain_after_dispatch", "uncertain must not be weakened")
+    assert(mergeOperationState("provider_rejected", "uncertain_after_dispatch") === "provider_rejected", "provider rejection must remain terminal")
+    assert(mergeOperationState("failed_before_dispatch", "dispatching") === "dispatching", "a new retry may advance a pre-dispatch failure")
+    assert(mergeSessionStatus("completed", "active") === "completed", "completed session must never regress")
+    assert(mergeSessionStatus("engaged", "active") === "engaged", "engaged session must not regress")
+  })
+
+  await test("session merge preserves provider IDs and scheduled SIDs", () => {
+    const base = createFollowUpSession({
+      fullName: "Test User",
+      email: "test@example.com",
+      phone: "+12025550123",
+      companyName: "Test Company",
+      businessType: "Plumbing",
+      consentSms: true,
+      consentEmail: true,
+      consentCall: true,
+    })
+    base.status = "completed"
+    base.initialCallState = "completed"
+    base.twilioCallSid = "CA-authoritative"
+    base.scheduledMessageSid = "SM-authoritative"
+    base.scheduledMessageStatus = "scheduled"
+    const stale = structuredClone(base)
+    stale.status = "active"
+    stale.initialCallState = "dispatching"
+    delete stale.twilioCallSid
+    delete stale.scheduledMessageSid
+    delete stale.scheduledMessageStatus
+    const merged = mergeFollowUpSession(base, stale)
+    assert(merged.status === "completed", "stale status must not regress")
+    assert(merged.initialCallState === "completed", "stale operation state must not regress")
+    assert(merged.twilioCallSid === "CA-authoritative", "provider SID must survive stale write")
+    assert(merged.scheduledMessageSid === "SM-authoritative", "scheduled SID must survive stale write")
+  })
+
+  await test("session idempotency hashing includes all material fields and normalizes equivalents", () => {
+    const base = {
+      fullName: "Test User",
+      email: "TEST@example.com",
+      phone: "+1 (202) 555-0123",
+      companyName: "Test Company",
+      businessType: "Plumbing",
+      consentSms: true,
+      consentEmail: true,
+      consentCall: true,
+    }
+    const equivalent = { ...base, fullName: "  Test   User ", email: "test@example.com", phone: "2025550123", companyName: " Test Company ", businessType: " plumbing " }
+    assert(deriveFollowUpRequestHash(base) === deriveFollowUpRequestHash(equivalent), "normalized equivalents should hash equally")
+    assert(deriveFollowUpRequestHash(base) !== deriveFollowUpRequestHash({ ...base, companyName: "Other Company" }), "company changes must hash differently")
+    assert(deriveFollowUpRequestHash(base) !== deriveFollowUpRequestHash({ ...base, consentCall: false }), "consent changes must hash differently")
+    assert(canonicalizeFollowUpPayload(equivalent).phone === "+12025550123", "phone canonicalization should be stable")
+  })
+
+  await test("deterministic events replace state instead of duplicating callbacks", () => {
+    const session = createFollowUpSession({
+      fullName: "Test User",
+      email: "test@example.com",
+      phone: "+12025550123",
+      companyName: "Test Company",
+      businessType: "Plumbing",
+      consentSms: true,
+      consentEmail: true,
+      consentCall: true,
+    })
+    upsertEvent(session, { id: "callback-1", type: "sms.delivered", label: "SMS delivered", detail: "Queued", channel: "sms", status: "running", createdAt: new Date().toISOString() })
+    upsertEvent(session, { id: "callback-1", type: "sms.delivered", label: "SMS delivered", detail: "Confirmed", channel: "sms", status: "completed", createdAt: new Date().toISOString() })
+    assert(session.events.filter((item) => item.id === "callback-1").length === 1, "duplicate callback event should be collapsed")
+    assert(session.events.find((item) => item.id === "callback-1")?.status === "completed", "callback event should advance monotonically")
   })
 
   await test("contact idempotency changes when the brief payload changes", () => {

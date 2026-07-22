@@ -3,7 +3,6 @@ import { getClientIp } from "@/lib/demo-rate-limit"
 import { checkDurableRateLimit, hashRateLimitKey } from "@/lib/durable-rate-limit"
 import { sendDemoExperienceEmail, sendLeadNotification, validateSmtpConfig } from "@/lib/mail"
 import {
-  createFollowUpSession,
   createSessionToken,
   event,
   getOrCreateFollowUpSession,
@@ -36,10 +35,9 @@ export async function POST(request: Request) {
     }
 
     const rawKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : ""
-    const idempotencyKey = rawKey || `key-${input.phone}:${input.email}:${input.businessType}`
     let currentSession
     try {
-      const result = await getOrCreateFollowUpSession({ ...input, idempotencyKey })
+      const result = await getOrCreateFollowUpSession({ ...input, idempotencyKey: rawKey || undefined })
       currentSession = result.session
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -70,7 +68,7 @@ export async function POST(request: Request) {
       'initial-call',
       async () => {
         const res = await startDemoCall({ to: session.phone, twimlUrl: callUrl, statusCallback, machineDetection: "Enable" })
-        return { value: { providerSid: res.sid, from: res.from }, providerId: res.sid }
+        return { value: { providerSid: res.sid, from: res.from }, providerId: res.sid, providerMetadata: { from: res.from, status: res.status } }
       },
       {
         sessionId: session.id,
@@ -158,8 +156,9 @@ export async function POST(request: Request) {
     }
 
     await saveFollowUpSession(session)
+    const publicState = publicSession(session)
 
-    return NextResponse.json({ ok: true, token, session: publicSession(session) })
+    return NextResponse.json({ ok: true, workflowStatus: publicState.workflowStatus, token, session: publicState })
   } catch (error) {
     console.error("[follow-up-demo/session]", error)
     return NextResponse.json({ ok: false, error: "The live demo could not start." }, { status: 500 })

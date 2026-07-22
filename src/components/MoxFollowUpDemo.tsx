@@ -232,15 +232,15 @@ export function MoxFollowUpDemo() {
                 <p className="mt-3 text-center text-[10px] leading-5 text-ink-faint">Limited to two sessions per phone each day. Your contact details become a Volimox demo lead.</p>
               </form>
             ) : (
-                <div className="flex h-full min-h-[610px] flex-col">
-                <div className="flex items-center justify-between border-b border-line pb-5"><div><p className="text-xs font-semibold text-ink-faint">Live workflow</p><h3 className="mt-2 text-2xl font-semibold tracking-[-.04em]">Example {session.businessType}</h3></div><span className={`h-3 w-3 rounded-full ${session.status === "completed" ? "bg-ink/20" : "animate-pulse bg-signal"}`} /></div>
-                <div className="mt-8">
-                  <p className="text-sm font-semibold">{session.status === "completed" ? "Lead recovery complete" : session.messages.length ? "Continue by text" : "Check your phone"}</p>
-                  <p className="mt-2 text-sm leading-6 text-ink-muted">{session.status === "completed" ? "Mox captured the conversation and prepared the lead for owner follow-up." : session.messages.length ? `The text-back reached ${session.phoneMasked}. Reply with a real service problem and watch the workflow continue.` : `We are calling ${session.phoneMasked} now. Reject the call or let it ring out. Twilio sends the text-back only after the missed call is confirmed.`}</p>
-                </div>
-                <div className="mt-8 grid gap-px bg-line sm:grid-cols-2">
-                  <ContactArtifact icon={Phone} label="SMS channel" value={session.phoneMasked} />
-                  <ContactArtifact icon={EnvelopeSimple} label="Email sent to" value={session.emailMasked} />
+                 <div className="flex h-full min-h-[610px] flex-col">
+                 <div className="flex items-center justify-between border-b border-line pb-5"><div><p className="text-xs font-semibold text-ink-faint">Live workflow</p><h3 className="mt-2 text-2xl font-semibold tracking-[-.04em]">Example {session.businessType}</h3></div><span className={`h-3 w-3 rounded-full ${session.status === "completed" ? "bg-ink/20" : "animate-pulse bg-signal"}`} /></div>
+                 <div className="mt-8">
+                   <p className="text-sm font-semibold">{session.status === "completed" ? "Lead recovery complete" : session.initialCallState === "failed" || session.initialCallState === "provider_rejected" ? "The demo call could not start" : session.initialCallState === "uncertain_after_dispatch" ? "Call status is being verified" : session.recoverySmsState === "failed" || session.recoverySmsState === "provider_rejected" ? "The recovery text could not be sent" : session.recoverySmsState === "uncertain_after_dispatch" ? "Text status is being verified" : (session.recoverySmsState === "sent" || session.recoverySmsState === "completed") && session.messages.length ? "Continue by text" : "Check your phone"}</p>
+                   <p className="mt-2 text-sm leading-6 text-ink-muted">{session.status === "completed" ? "Mox captured the conversation and prepared the lead for owner follow-up." : session.initialCallState === "failed" || session.initialCallState === "provider_rejected" ? "The live call did not start. You can try a different scenario after checking the demo configuration." : session.initialCallState === "uncertain_after_dispatch" ? "The call provider has not confirmed the result. We will not place a duplicate call automatically." : session.recoverySmsState === "failed" || session.recoverySmsState === "provider_rejected" ? "The missed-call text was not confirmed. We will not claim that it reached your phone." : session.recoverySmsState === "uncertain_after_dispatch" ? "The text provider has not confirmed delivery. We will not claim that it reached your phone." : (session.recoverySmsState === "sent" || session.recoverySmsState === "completed") && session.messages.length ? `The text-back reached ${session.phoneMasked}. Reply with a real service problem and watch the workflow continue.` : `We are calling ${session.phoneMasked} now. Reject the call or let it ring out. Twilio sends the text-back only after the missed call is confirmed.`}</p>
+                 </div>
+                 <div className="mt-8 grid gap-px bg-line sm:grid-cols-2">
+                   <ContactArtifact icon={Phone} label="SMS channel" value={session.phoneMasked} />
+                   <ContactArtifact icon={EnvelopeSimple} label={session.initialEmailState === "sent" || session.initialEmailState === "completed" ? "Email sent to" : session.initialEmailState === "uncertain_after_dispatch" ? "Email status" : "Email artifact"} value={session.initialEmailState === "sent" || session.initialEmailState === "completed" ? session.emailMasked : session.initialEmailState === "uncertain_after_dispatch" ? "Being verified" : "Not confirmed"} />
                 </div>
                 <div className="mt-8 border border-line-strong bg-white p-5">
                   <p className="font-mono text-[9px] uppercase tracking-[.16em] text-ink-faint">What to try</p>
@@ -397,13 +397,14 @@ function ServiceStatusCard({ session, businessType }: { session: PublicFollowUpD
   const messages = session ? session.messages : []
   const hasEvent = (type: string) => events.some((item) => item.type === type)
   const hasInboundMessage = messages.some((item) => item.direction === "inbound")
-  const hasOutboundMessage = messages.some((item) => item.direction === "outbound")
   const recoveryStarted = hasEvent("sms.recovery_started")
-  const missedCallDetected = recoveryStarted || events.some((item) => ["call.busy", "call.no-answer", "call.canceled"].includes(item.type))
-  const callFailed = !missedCallDetected && events.some((item) => item.channel === "call" && item.state === "failed")
-  const callInProgress = events.some((item) => ["call.started", "sms.waiting_for_missed_call"].includes(item.type))
-  const textSent = hasOutboundMessage || events.some((item) => ["sms.sent", "sms.delivered"].includes(item.type))
-  const textFailed = !textSent && events.some((item) => item.channel === "sms" && item.state === "failed")
+  const missedCallDetected = events.some((item) => ["call.busy", "call.no-answer", "call.canceled", "call.machine", "call.fax"].includes(item.type))
+  const callFailed = session?.initialCallState === "failed" || session?.initialCallState === "provider_rejected" || (!missedCallDetected && events.some((item) => item.channel === "call" && item.state === "failed"))
+  const callUncertain = session?.initialCallState === "uncertain_after_dispatch"
+  const callInProgress = session?.initialCallState === "started" || session?.initialCallState === "dispatching" || events.some((item) => ["call.started", "sms.waiting_for_missed_call"].includes(item.type))
+  const textSent = session?.recoverySmsState === "sent" || session?.recoverySmsState === "completed" || events.some((item) => ["sms.sent", "sms.delivered"].includes(item.type))
+  const textFailed = session?.recoverySmsState === "failed" || session?.recoverySmsState === "provider_rejected" || (!textSent && events.some((item) => item.channel === "sms" && item.state === "failed"))
+  const textUncertain = session?.recoverySmsState === "uncertain_after_dispatch"
   const customerReplied = hasInboundMessage || hasEvent("customer.replied")
   const leadReady = hasEvent("lead.created")
   const optedOut = hasEvent("consent.revoked")
@@ -411,9 +412,11 @@ function ServiceStatusCard({ session, businessType }: { session: PublicFollowUpD
   const stages: ServiceStage[] = [
     {
       label: "Call",
-      state: callFailed ? "failed" : missedCallDetected ? "complete" : callInProgress ? "active" : "waiting",
+      state: callFailed ? "failed" : callUncertain ? "failed" : missedCallDetected ? "complete" : callInProgress ? "active" : "waiting",
       detail: callFailed
         ? "The demo call could not be completed."
+        : callUncertain
+          ? "Call status is being verified; no duplicate call will be placed."
         : missedCallDetected
           ? "Twilio confirmed the missed call."
           : callInProgress
@@ -422,9 +425,11 @@ function ServiceStatusCard({ session, businessType }: { session: PublicFollowUpD
     },
     {
       label: "Text",
-      state: textFailed ? "failed" : textSent ? "complete" : recoveryStarted ? "active" : "waiting",
+      state: textFailed || textUncertain ? "failed" : textSent ? "complete" : recoveryStarted ? "active" : "waiting",
       detail: textFailed
         ? "The recovery text could not be sent."
+        : textUncertain
+          ? "Text status is being verified; it will not be retried blindly."
         : textSent
           ? "The missed-call text-back was sent."
           : recoveryStarted

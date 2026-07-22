@@ -6,6 +6,8 @@ export type SideEffectState =
   | "sent" | "started" | "completed"
   | "failed_before_dispatch" | "uncertain_after_dispatch" | "provider_rejected"
 
+export type SideEffectProviderMetadata = Record<string, string>
+
 export interface SideEffectRecord {
   id: string
   state: SideEffectState
@@ -17,6 +19,7 @@ export interface SideEffectRecord {
   completedAt?: number
   providerId?: string
   providerType?: string
+  providerMetadata?: SideEffectProviderMetadata
   errorCategory?: string
   expiresAtServer?: FirebaseFirestore.Timestamp | number
   updatedAtServer?: FirebaseFirestore.FieldValue
@@ -39,10 +42,10 @@ export interface ClaimResult {
 export interface SideEffectStore {
   claim(id: string, operationType: string, opts?: SideEffectClaimOptions): Promise<ClaimResult>
   markDispatching(id: string, ownerId: string): Promise<void>
-  markCompleted(id: string, ownerId: string, completedState: "sent" | "started" | "completed", providerId?: string): Promise<void>
+  markCompleted(id: string, ownerId: string, completedState: "sent" | "started" | "completed", providerId?: string, providerMetadata?: SideEffectProviderMetadata): Promise<void>
   markProviderRejected(id: string, ownerId: string, errorCategory: string): Promise<void>
   markFailedBeforeDispatch(id: string, ownerId: string, errorCategory: string): Promise<void>
-  markUncertain(id: string, ownerId: string, errorCategory: string, providerId?: string): Promise<void>
+  markUncertain(id: string, ownerId: string, errorCategory: string, providerId?: string, providerMetadata?: SideEffectProviderMetadata): Promise<void>
   get(id: string): Promise<SideEffectRecord | null>
 }
 
@@ -180,6 +183,7 @@ export class FirestoreSideEffectStore implements SideEffectStore {
           dispatchedAt: FieldValue.delete(),
           completedAt: FieldValue.delete(),
           providerId: FieldValue.delete(),
+          providerMetadata: FieldValue.delete(),
           errorCategory: FieldValue.delete(),
           expiresAtServer: Timestamp.fromDate(new Date(now + ttlHours * 60 * 60 * 1000)),
           updatedAtServer: FieldValue.serverTimestamp(),
@@ -194,6 +198,7 @@ export class FirestoreSideEffectStore implements SideEffectStore {
           dispatchedAt: undefined,
           completedAt: undefined,
           providerId: undefined,
+          providerMetadata: undefined,
           errorCategory: undefined,
         }
         return { claimed: true, ownerId, record: updated }
@@ -236,11 +241,12 @@ export class FirestoreSideEffectStore implements SideEffectStore {
     })
   }
 
-  async markCompleted(id: string, ownerId: string, completedState: "sent" | "started" | "completed", providerId?: string): Promise<void> {
+  async markCompleted(id: string, ownerId: string, completedState: "sent" | "started" | "completed", providerId?: string, providerMetadata?: SideEffectProviderMetadata): Promise<void> {
     await this.transition(id, ownerId, "dispatching", {
       state: completedState,
       completedAt: Date.now(),
       ...(providerId ? { providerId } : {}),
+      ...(providerMetadata ? { providerMetadata } : {}),
     })
   }
 
@@ -260,11 +266,12 @@ export class FirestoreSideEffectStore implements SideEffectStore {
     })
   }
 
-  async markUncertain(id: string, ownerId: string, errorCategory: string, providerId?: string): Promise<void> {
+  async markUncertain(id: string, ownerId: string, errorCategory: string, providerId?: string, providerMetadata?: SideEffectProviderMetadata): Promise<void> {
     await this.transition(id, ownerId, "dispatching", {
       state: "uncertain_after_dispatch",
       errorCategory,
       ...(providerId ? { providerId } : {}),
+      ...(providerMetadata ? { providerMetadata } : {}),
       completedAt: Date.now(),
     })
   }
@@ -317,6 +324,7 @@ export class InMemorySideEffectStore implements SideEffectStore {
         dispatchedAt: undefined,
         completedAt: undefined,
         providerId: undefined,
+        providerMetadata: undefined,
         errorCategory: undefined,
         expiresAtServer: now + ttlHours * 60 * 60 * 1000,
       }
@@ -351,11 +359,12 @@ export class InMemorySideEffectStore implements SideEffectStore {
     record.dispatchedAt = Date.now()
   }
 
-  async markCompleted(id: string, ownerId: string, completedState: "sent" | "started" | "completed", providerId?: string): Promise<void> {
+  async markCompleted(id: string, ownerId: string, completedState: "sent" | "started" | "completed", providerId?: string, providerMetadata?: SideEffectProviderMetadata): Promise<void> {
     const record = this.ownedRecord(id, ownerId, "dispatching")
     record.state = completedState
     record.completedAt = Date.now()
     if (providerId) record.providerId = providerId
+    if (providerMetadata) record.providerMetadata = providerMetadata
   }
 
   async markProviderRejected(id: string, ownerId: string, errorCategory: string): Promise<void> {
@@ -372,11 +381,12 @@ export class InMemorySideEffectStore implements SideEffectStore {
     record.completedAt = Date.now()
   }
 
-  async markUncertain(id: string, ownerId: string, errorCategory: string, providerId?: string): Promise<void> {
+  async markUncertain(id: string, ownerId: string, errorCategory: string, providerId?: string, providerMetadata?: SideEffectProviderMetadata): Promise<void> {
     const record = this.ownedRecord(id, ownerId, "dispatching")
     record.state = "uncertain_after_dispatch"
     record.errorCategory = errorCategory
     if (providerId) record.providerId = providerId
+    if (providerMetadata) record.providerMetadata = providerMetadata
     record.completedAt = Date.now()
   }
 
@@ -386,11 +396,11 @@ export class InMemorySideEffectStore implements SideEffectStore {
 }
 
 export type SideEffectOutcome<T> =
-  | { kind: "executed"; value: T; providerId?: string }
+  | { kind: "executed"; value: T; providerId?: string; providerMetadata?: SideEffectProviderMetadata }
   | { kind: "already_completed"; record: SideEffectRecord }
   | { kind: "already_dispatching"; record: SideEffectRecord }
   | { kind: "persistence_unavailable" }
-  | { kind: "reconciliation_required"; value?: T; providerId?: string }
+  | { kind: "reconciliation_required"; value?: T; providerId?: string; providerMetadata?: SideEffectProviderMetadata }
   | { kind: "preflight_failed"; errorCategory: string }
   | { kind: "provider_rejected"; errorCategory: string }
   | { kind: "uncertain" }
@@ -399,7 +409,7 @@ export async function executeSideEffect<T>(
   store: SideEffectStore,
   effectId: string,
   operationType: string,
-  dispatch: () => Promise<{ value: T; providerId?: string }>,
+  dispatch: () => Promise<{ value: T; providerId?: string; providerMetadata?: SideEffectProviderMetadata }>,
   options?: {
     sessionId?: string
     claimTimeoutMs?: number
@@ -450,7 +460,7 @@ export async function executeSideEffect<T>(
     return { kind: "persistence_unavailable" }
   }
 
-  let result: { value: T; providerId?: string }
+  let result: { value: T; providerId?: string; providerMetadata?: SideEffectProviderMetadata }
   try {
     result = await dispatch()
   } catch (error) {
@@ -473,12 +483,12 @@ export async function executeSideEffect<T>(
   }
 
   try {
-    await store.markCompleted(effectId, ownerId, options?.completedState ?? "sent", result.providerId)
+    await store.markCompleted(effectId, ownerId, options?.completedState ?? "sent", result.providerId, result.providerMetadata)
   } catch (err) {
-    return { kind: "reconciliation_required", value: result.value, providerId: result.providerId }
+    return { kind: "reconciliation_required", value: result.value, providerId: result.providerId, providerMetadata: result.providerMetadata }
   }
 
-  return { kind: "executed", value: result.value, providerId: result.providerId }
+  return { kind: "executed", value: result.value, providerId: result.providerId, providerMetadata: result.providerMetadata }
 }
 
 export function createSideEffectStore(
@@ -487,5 +497,8 @@ export function createSideEffectStore(
 ): SideEffectStore {
   if (db && collectionRef) return createFirestoreSideEffectStore(db, collectionRef)
   if (process.env.NODE_ENV === "production") throw new SideEffectPersistenceUnavailableError()
-  return new InMemorySideEffectStore()
+  developmentFallbackStore ??= new InMemorySideEffectStore()
+  return developmentFallbackStore
 }
+
+let developmentFallbackStore: InMemorySideEffectStore | undefined
