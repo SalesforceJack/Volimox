@@ -1,8 +1,9 @@
 import { sendLeadNotification, validateSmtpConfig } from "@/lib/mail"
-import { deterministicEvent, message, projectSideEffectRecord, recoverySmsBody, scheduledFollowUpSmsBody, upsertEvent, upsertMessageBySid, publicBaseUrl, saveFollowUpSession, type FollowUpDemoSession } from "@/lib/follow-up-demo"
+import { deterministicEvent, message, projectSideEffectRecord, recoverySmsBody, scheduledFollowUpSmsBody, upsertEvent, publicBaseUrl, saveFollowUpSession, type FollowUpDemoSession } from "@/lib/follow-up-demo"
 import { cancelScheduledSms, sendFollowUpSms, validateTwilioConfig, validateTwilioSchedulingConfig } from "@/lib/twilio-demo"
 import { createSideEffectStore, executeSideEffect, deriveSideEffectId, ProviderRejectedError, SideEffectPreflightError, type SideEffectStore } from "@/lib/side-effect-machine"
 import { demoDb, getDemoTenantId, getSideEffectsCollection, getInboundSmsClaimsCollection } from "@/lib/firebase-admin"
+import { createInboundReplyStatusCallback, inboundReplyBody, projectInboundReplySideEffect, reconcileInboundReplySideEffect } from "@/lib/inbound-reply-reconciliation"
 
 const OPT_OUT_KEYWORDS = /^(stop|stopall|unsubscribe|cancel|end|quit)\b/i
 
@@ -226,22 +227,44 @@ export async function processInboundDemoSms(session: FollowUpDemoSession, rawBod
   }
 
   const inboundCount = session.messages.filter((item) => item.direction === "inbound").length
-  const firstName = session.fullName.split(" ")[0]
-  const reply = inboundCount === 1
-    ? `Thanks, ${firstName}. What is the service address, and is this urgent?`
-    : inboundCount === 2
-      ? "Got it. What is the best time for the technician to call or arrive?"
-      : "Thank you. We captured the job details and notified the team. They can now follow up with the full context."
-  const statusCallback = `${publicBaseUrl(request)}/api/follow-up-demo/twilio/status?sessionId=${encodeURIComponent(session.id)}&channel=sms`
-  const replyEffectId = deriveSideEffectId(session.id, "inbound-reply-sms", sid || String(inboundCount))
+  const reply = inboundReplyBody(session, inboundCount)
+  const sourceSid = sid || String(inboundCount)
+  const callback = createInboundReplyStatusCallback({
+    baseUrl: publicBaseUrl(request),
+    sessionId: session.id,
+    sourceSid,
+    inboundCount,
+  })
+  const replyEffectId = callback.effectId
+  const statusCallback = callback.url
   const replyStore = createSideEffectStore(db, sideEffectsRef)
+
+  const existingReplyRecord = await replyStore.get(replyEffectId).catch(() => null)
+  if (existingReplyRecord?.state === "uncertain_after_dispatch" && existingReplyRecord.providerId) {
+    projectInboundReplySideEffect(session, existingReplyRecord)
+    upsertEvent(session, deterministicEvent(`agent-reply-uncertain-${sourceSid}`, "agent.reply_uncertain", "Automated reply status is being verified", "The reply was not retried because the provider already returned a message identifier.", "sms", "failed"))
+    await saveFollowUpSession(session)
+    await markInboundClaimUncertain(inboundStore, claimDocId, claimOwnerId, existingReplyRecord.providerId)
+    return session
+  }
+
   const replyOutcome = await executeSideEffect(
     replyStore,
     replyEffectId,
     "inbound-reply-sms",
     async () => {
       const sms = await sendFollowUpSms({ to: session.phone, body: reply, statusCallback })
-      return { value: sms, providerId: sms.sid, providerMetadata: { from: sms.from, status: sms.status } }
+      return {
+        value: sms,
+        providerId: sms.sid,
+        providerMetadata: {
+          from: sms.from,
+          status: sms.status,
+          body: reply,
+          replyStep: String(inboundCount),
+          sourceSid,
+        },
+      }
     },
     {
       sessionId: session.id,
@@ -256,45 +279,72 @@ export async function processInboundDemoSms(session: FollowUpDemoSession, rawBod
   let replyAccepted = false
   if (replyOutcome.kind === "executed") {
     replyProviderId = replyOutcome.providerId
-    if (replyOutcome.providerMetadata?.from) session.twilioNumber = replyOutcome.providerMetadata.from
-    if (replyProviderId) upsertMessageBySid(session, reply, replyOutcome.providerMetadata?.status || "queued", replyProviderId)
+    projectInboundReplySideEffect(session, {
+      id: replyEffectId,
+      operationType: "inbound-reply-sms",
+      sessionId: session.id,
+      state: "sent",
+      providerId: replyProviderId,
+      providerMetadata: replyOutcome.providerMetadata,
+    })
     replyAccepted = Boolean(replyProviderId)
   } else if (replyOutcome.kind === "already_completed") {
     replyProviderId = replyOutcome.record.providerId
-    if (replyOutcome.record.providerMetadata?.from) session.twilioNumber = replyOutcome.record.providerMetadata.from
-    if (replyProviderId) upsertMessageBySid(session, reply, replyOutcome.record.providerMetadata?.status || "queued", replyProviderId)
+    projectInboundReplySideEffect(session, replyOutcome.record)
     replyAccepted = Boolean(replyProviderId)
   } else if (replyOutcome.kind === "reconciliation_required") {
     replyProviderId = replyOutcome.providerId
-    if (replyOutcome.providerMetadata?.from) session.twilioNumber = replyOutcome.providerMetadata.from
-    if (replyProviderId) upsertMessageBySid(session, reply, replyOutcome.providerMetadata?.status || "queued", replyProviderId)
-    upsertEvent(session, deterministicEvent(`agent-reply-uncertain-${sid || replyEffectId}`, "agent.reply_uncertain", "Automated reply status is being verified", "The reply was not retried because provider confirmation is incomplete.", "sms", "failed"))
+    const reconciliationRecord = {
+      id: replyEffectId,
+      operationType: "inbound-reply-sms",
+      sessionId: session.id,
+      state: "uncertain_after_dispatch" as const,
+      providerId: replyProviderId,
+      providerMetadata: replyOutcome.providerMetadata,
+    }
+    projectInboundReplySideEffect(session, reconciliationRecord)
+    if (db && sideEffectsRef && replyProviderId) {
+      try {
+        const persistedRecord = await reconcileInboundReplySideEffect(db, sideEffectsRef, {
+          effectId: replyEffectId,
+          sessionId: session.id,
+          providerId: replyProviderId,
+          state: "uncertain_after_dispatch",
+          providerMetadata: replyOutcome.providerMetadata,
+          ttlHours: 24,
+        })
+        projectInboundReplySideEffect(session, persistedRecord)
+      } catch (error) {
+        console.error("[follow-up-demo/reply-reconciliation]", error)
+      }
+    }
+    upsertEvent(session, deterministicEvent(`agent-reply-uncertain-${sourceSid}`, "agent.reply_uncertain", "Automated reply status is being verified", "The reply was not retried because provider confirmation is incomplete.", "sms", "failed"))
     await saveFollowUpSession(session)
     await markInboundClaimUncertain(inboundStore, claimDocId, claimOwnerId, replyProviderId)
     return session
   } else if (replyOutcome.kind === "uncertain") {
-    upsertEvent(session, deterministicEvent(`agent-reply-uncertain-${sid || replyEffectId}`, "agent.reply_uncertain", "Automated reply status is being verified", "The reply was not retried because provider confirmation is incomplete.", "sms", "failed"))
+    upsertEvent(session, deterministicEvent(`agent-reply-uncertain-${sourceSid}`, "agent.reply_uncertain", "Automated reply status is being verified", "The reply was not retried because provider confirmation is incomplete.", "sms", "failed"))
     await saveFollowUpSession(session)
     await markInboundClaimUncertain(inboundStore, claimDocId, claimOwnerId)
     return session
   } else if (replyOutcome.kind === "already_dispatching") {
-    upsertEvent(session, deterministicEvent(`agent-reply-running-${sid || replyEffectId}`, "agent.reply_pending", "Automated reply is in progress", "The provider is still confirming the reply.", "sms", "running"))
+    upsertEvent(session, deterministicEvent(`agent-reply-running-${sourceSid}`, "agent.reply_pending", "Automated reply is in progress", "The provider is still confirming the reply.", "sms", "running"))
     await saveFollowUpSession(session)
     return session
   } else if (replyOutcome.kind === "preflight_failed" || replyOutcome.kind === "persistence_unavailable") {
-    upsertEvent(session, deterministicEvent(`agent-reply-failed-${sid || replyEffectId}`, "agent.reply_failed", "Automated reply could not start", "The reply provider is temporarily unavailable.", "sms", "failed"))
+    upsertEvent(session, deterministicEvent(`agent-reply-failed-${sourceSid}`, "agent.reply_failed", "Automated reply could not start", "The reply provider is temporarily unavailable.", "sms", "failed"))
     await saveFollowUpSession(session)
     await retryInboundClaim(inboundStore, claimDocId, claimOwnerId, replyOutcome.kind)
     return session
   } else if (replyOutcome.kind === "provider_rejected") {
-    upsertEvent(session, deterministicEvent(`agent-reply-failed-${sid || replyEffectId}`, "agent.reply_failed", "Automated reply was rejected", "The provider rejected the reply request.", "sms", "failed"))
+    upsertEvent(session, deterministicEvent(`agent-reply-failed-${sourceSid}`, "agent.reply_failed", "Automated reply was rejected", "The provider rejected the reply request.", "sms", "failed"))
     await saveFollowUpSession(session)
     await rejectInboundClaim(inboundStore, claimDocId, claimOwnerId, replyOutcome.errorCategory)
     return session
   }
 
   if (!replyAccepted || !replyProviderId) {
-    upsertEvent(session, deterministicEvent(`agent-reply-uncertain-${sid || replyEffectId}`, "agent.reply_uncertain", "Automated reply status is being verified", "The provider response did not contain a durable message identifier.", "sms", "failed"))
+    upsertEvent(session, deterministicEvent(`agent-reply-uncertain-${sourceSid}`, "agent.reply_uncertain", "Automated reply status is being verified", "The provider response did not contain a durable message identifier.", "sms", "failed"))
     await saveFollowUpSession(session)
     await markInboundClaimUncertain(inboundStore, claimDocId, claimOwnerId)
     return session
@@ -331,9 +381,6 @@ export async function processInboundDemoSms(session: FollowUpDemoSession, rawBod
     ).catch((error) => console.error("[follow-up-demo/completed-lead]", error))
   }
 
-  // The session is committed before the MessageSid claim is completed. If the
-  // save fails, Twilio can retry; the deterministic reply side effect then
-  // reconstructs the provider SID without sending a second SMS.
   await saveFollowUpSession(session)
   await completeInboundClaim(inboundStore, claimDocId, claimOwnerId, replyProviderId)
   return session
