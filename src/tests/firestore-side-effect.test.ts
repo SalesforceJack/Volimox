@@ -3,8 +3,9 @@ import { deleteApp, initializeApp } from "firebase-admin/app"
 import { getFirestore } from "firebase-admin/firestore"
 import { createFirestoreSideEffectStore } from "../lib/side-effect-machine.js"
 import { createFollowUpSession, getFollowUpSession, saveFollowUpSession } from "../lib/follow-up-demo.js"
-import { demoDb, getContactLeadsCollection, getDemoTenantId, getFollowUpSessionsCollection } from "../lib/firebase-admin.js"
+import { demoDb, getContactLeadsCollection, getDemoTenantId } from "../lib/firebase-admin.js"
 import { persistContactLead, updateContactLeadNotification } from "../lib/contact-lead.js"
+import { reconcileInboundReplySideEffect } from "../lib/inbound-reply-reconciliation.js"
 
 const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST?.trim()
 if (!emulatorHost) {
@@ -64,6 +65,37 @@ async function run() {
       assert(stale.record?.state === "uncertain_after_dispatch", "stale dispatch should be persisted as uncertain")
     })
 
+    await test("provider callback reconciles missing and dispatching reply records", async () => {
+      const missingId = `reply-missing-${crypto.randomUUID()}`
+      const dispatchingId = `reply-dispatching-${crypto.randomUUID()}`
+      createdIds.push(missingId, dispatchingId)
+
+      const missingRecord = await reconcileInboundReplySideEffect(db, collection, {
+        effectId: missingId,
+        sessionId: "session-missing",
+        providerId: "SM-missing",
+        state: "sent",
+        providerMetadata: { body: "Reply body", status: "delivered", replyStep: "1", sourceSid: "SM-source-1" },
+      })
+      assert(missingRecord.state === "sent", "callback should create a missing side-effect record")
+      assert(missingRecord.providerId === "SM-missing", "callback should persist the provider SID")
+
+      const claim = await store.claim(dispatchingId, "inbound-reply-sms", { sessionId: "session-dispatching" })
+      assert(claim.claimed && Boolean(claim.ownerId), "reply effect should be claimed")
+      await store.markDispatching(dispatchingId, claim.ownerId)
+      const reconciled = await reconcileInboundReplySideEffect(db, collection, {
+        effectId: dispatchingId,
+        sessionId: "session-dispatching",
+        providerId: "SM-dispatching",
+        state: "sent",
+        providerMetadata: { body: "Reply body", status: "sent", replyStep: "2", sourceSid: "SM-source-2" },
+      })
+      assert(reconciled.state === "sent", "provider callback should resolve a dispatching record")
+      assert(reconciled.providerId === "SM-dispatching", "dispatching reconciliation should retain the provider SID")
+      const stored = await store.get(dispatchingId)
+      assert(stored?.providerMetadata?.sourceSid === "SM-source-2", "callback metadata should be durable")
+    })
+
     await test("concurrent session saves preserve completed state and provider IDs", async () => {
       const session = createFollowUpSession({
         fullName: "Test User",
@@ -94,9 +126,9 @@ async function run() {
       assert(Boolean(stored?.scheduledMessageSid), "scheduled SID should survive a concurrent save")
     })
 
-    await test("contact lead remains stored when notification fails", async () => {
-      const db = demoDb()
-      assert(Boolean(db), "emulator Firestore should initialize")
+    await test("contact lead remains stored and sent status does not regress", async () => {
+      const configuredDb = demoDb()
+      assert(Boolean(configuredDb), "emulator Firestore should initialize")
       const lead = {
         fullName: "Lead User",
         email: "lead@example.com",
@@ -105,15 +137,19 @@ async function run() {
         projectScope: "Missed-call recovery",
         estimatedVolume: "50",
       }
-      const { leadId } = await persistContactLead(db!, lead)
-      await updateContactLeadNotification(db!, leadId, "failed")
-      const stored = await getContactLeadsCollection(db!, getDemoTenantId()).doc(leadId).get()
-      assert(stored.exists, "lead document must remain after notification failure")
-      assert(stored.data()?.notificationStatus === "failed", "notification failure must be recorded")
+      const { leadId } = await persistContactLead(configuredDb!, lead)
+      await updateContactLeadNotification(configuredDb!, leadId, "failed")
+      await updateContactLeadNotification(configuredDb!, leadId, "sent", "email-provider-id")
+      await updateContactLeadNotification(configuredDb!, leadId, "pending")
+      const stored = await getContactLeadsCollection(configuredDb!, getDemoTenantId()).doc(leadId).get()
+      assert(stored.exists, "lead document must remain after notification updates")
+      assert(stored.data()?.notificationStatus === "sent", "sent notification status must not regress")
+      assert(stored.data()?.notificationProviderId === "email-provider-id", "provider ID must remain durable")
     })
 
     await test("duplicate inbound claims for one MessageSid allow one processor", async () => {
       const id = `inbound-${crypto.randomUUID()}`
+      createdIds.push(id)
       const [first, second] = await Promise.all([
         store.claim(id, "inbound_sms", { sessionId: "session-1" }),
         store.claim(id, "inbound_sms", { sessionId: "session-1" }),
