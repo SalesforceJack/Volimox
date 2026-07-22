@@ -1,6 +1,7 @@
 import { mergeContactLeadNotificationStatus } from "../lib/contact-lead.ts"
 import { withRecoveryWorkflowStatus } from "../lib/public-workflow-status.ts"
 import { createFollowUpSession, publicSession } from "../lib/follow-up-demo.ts"
+import { createInboundReplyStatusCallback, projectInboundReplySideEffect, validateInboundReplyCallback } from "../lib/inbound-reply-reconciliation.ts"
 import { deriveSideEffectId, executeSideEffect, InMemorySideEffectStore, SideEffectPreflightError } from "../lib/side-effect-machine.ts"
 
 let passed = 0
@@ -19,6 +20,19 @@ async function test(name, fn) {
 
 function assert(condition, message) {
   if (!condition) throw new Error(`Assertion failed: ${message}`)
+}
+
+function makeSession() {
+  return createFollowUpSession({
+    fullName: "Test User",
+    email: "test@example.com",
+    phone: "+12025550123",
+    companyName: "Test Company",
+    businessType: "Plumbing",
+    consentSms: true,
+    consentEmail: true,
+    consentCall: true,
+  })
 }
 
 async function run() {
@@ -71,6 +85,47 @@ async function run() {
     assert(providerCalls === 1, "provider should run exactly once after configuration is fixed")
   })
 
+  await test("reply callback identity is deterministic and tamper evident", () => {
+    const callback = createInboundReplyStatusCallback({
+      baseUrl: "https://volimox.example",
+      sessionId: "session-1",
+      sourceSid: "SM-inbound",
+      inboundCount: 2,
+    })
+    const url = new URL(callback.url)
+    const input = {
+      sessionId: url.searchParams.get("sessionId") || "",
+      effectId: url.searchParams.get("effectId") || "",
+      sourceSid: url.searchParams.get("sourceSid") || "",
+      replyStep: Number(url.searchParams.get("replyStep") || "0"),
+    }
+    assert(validateInboundReplyCallback(input), "generated callback should validate")
+    assert(!validateInboundReplyCallback({ ...input, sourceSid: "SM-other" }), "altered source SID must be rejected")
+    assert(!validateInboundReplyCallback({ ...input, replyStep: 0 }), "invalid reply step must be rejected")
+  })
+
+  await test("provider callback reconstructs an outbound reply missing from the session", () => {
+    const session = makeSession()
+    const record = {
+      id: "reply-effect",
+      operationType: "inbound-reply-sms",
+      sessionId: session.id,
+      state: "sent",
+      providerId: "SM-provider",
+      providerMetadata: {
+        body: "Thanks, Test. What is the service address, and is this urgent?",
+        from: "+12025550199",
+        status: "queued",
+        replyStep: "1",
+      },
+    }
+    projectInboundReplySideEffect(session, record, "delivered")
+    projectInboundReplySideEffect(session, record, "delivered")
+    assert(session.messages.filter((item) => item.sid === "SM-provider").length === 1, "callback reconstruction must be idempotent")
+    assert(session.messages.find((item) => item.sid === "SM-provider")?.status === "delivered", "callback status should be retained")
+    assert(session.twilioNumber === "+12025550199", "provider sender should be reconstructed")
+  })
+
   await test("contact notification status never regresses after sent", () => {
     assert(mergeContactLeadNotificationStatus("sent", "pending") === "sent", "sent must beat pending")
     assert(mergeContactLeadNotificationStatus("sent", "failed") === "sent", "sent must beat failed")
@@ -79,16 +134,7 @@ async function run() {
   })
 
   await test("recovery failure prevents a fully-started public status", () => {
-    const session = createFollowUpSession({
-      fullName: "Test User",
-      email: "test@example.com",
-      phone: "+12025550123",
-      companyName: "Test Company",
-      businessType: "Plumbing",
-      consentSms: true,
-      consentEmail: true,
-      consentCall: true,
-    })
+    const session = makeSession()
     session.initialCallState = "started"
     session.initialEmailState = "sent"
     session.leadNotificationState = "sent"
