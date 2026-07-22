@@ -3,9 +3,14 @@ import { deterministicEvent, getFollowUpSession, publicSession, readSessionToken
 import { listInboundSms, getDemoCallStatus } from "@/lib/twilio-demo"
 import { processInboundDemoSms, triggerMissedCallRecovery } from "@/lib/follow-up-demo-processor"
 import { acquireProviderSyncLease, releaseProviderSyncLease } from "@/lib/provider-sync-lease"
+import { withRecoveryWorkflowStatus } from "@/lib/public-workflow-status"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+
+function responseSession(session: Parameters<typeof publicSession>[0]) {
+  return withRecoveryWorkflowStatus(publicSession(session))
+}
 
 export async function GET(request: Request) {
   const token = new URL(request.url).searchParams.get("token")
@@ -24,7 +29,7 @@ export async function GET(request: Request) {
     }
     // Another request is already syncing this session — return the current
     // state from Firestore without calling external providers again.
-    return NextResponse.json({ ok: true, session: publicSession(session) }, { headers: { "Cache-Control": "no-store" } })
+    return NextResponse.json({ ok: true, session: responseSession(session) }, { headers: { "Cache-Control": "no-store" } })
   }
 
   try {
@@ -60,5 +65,5 @@ export async function GET(request: Request) {
     await releaseProviderSyncLease(session.id, ownerId)
   }
 
-  return NextResponse.json({ ok: true, session: publicSession(session) }, { headers: { "Cache-Control": "no-store" } })
+  return NextResponse.json({ ok: true, session: responseSession(session) }, { headers: { "Cache-Control": "no-store" } })
 }
