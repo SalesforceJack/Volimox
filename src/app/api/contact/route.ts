@@ -13,14 +13,24 @@
  */
 
 import { NextResponse } from "next/server"
-import { sendLeadNotification } from "@/lib/mail"
+import { sendLeadNotification, validateSmtpConfig } from "@/lib/mail"
 import type { LeadFormData } from "@/lib/mail"
+import { getClientIp } from "@/lib/demo-rate-limit"
+import { checkDurableRateLimit } from "@/lib/durable-rate-limit"
+import { createSideEffectStore, executeSideEffect, deriveSideEffectId, ProviderRejectedError, SideEffectPreflightError } from "@/lib/side-effect-machine"
+import { demoDb, getSideEffectsCollection } from "@/lib/firebase-admin"
 
 // ---------------------------------------------------------------------------
 // POST handler
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request)
+  const allowed = await checkDurableRateLimit(`contact:${ip}`, 3, 60 * 60 * 1000, { failClosed: true })
+  if (!allowed) {
+    return NextResponse.json({ success: false, error: "Too many requests. Please try again later." }, { status: 429 })
+  }
+
   try {
     const contentType = request.headers.get("content-type") ?? ""
 
@@ -100,7 +110,40 @@ export async function POST(request: Request) {
       estimatedVolume,
     }
 
-    await sendLeadNotification(lead)
+    const effectId = deriveSideEffectId("contact-lead", email, companyName)
+    const db = demoDb()
+    const collection = db ? getSideEffectsCollection(db) : null
+
+    const store = createSideEffectStore(db, collection)
+
+    const emailOutcome = await executeSideEffect(
+      store,
+      effectId,
+      "contact-lead-email",
+      async () => {
+        const res = await sendLeadNotification(lead)
+        if (res.sent === false) throw new ProviderRejectedError(res.reasonCode)
+        return { value: res, providerId: res.providerId }
+      },
+      {
+        preflight: () => {
+          if (!validateSmtpConfig().configured) throw new SideEffectPreflightError("not_configured")
+        },
+      },
+    )
+
+    if (emailOutcome.kind === "already_completed" || emailOutcome.kind === "already_dispatching") {
+      return NextResponse.json({ success: true, message: "Your operation brief has already been submitted." })
+    }
+
+    if (emailOutcome.kind === "persistence_unavailable") {
+      console.error("[api/contact] Side-effect persistence unavailable")
+      return NextResponse.json({ success: false, error: "Internal server error. Please try again later." }, { status: 500 })
+    }
+
+    if (emailOutcome.kind === "provider_rejected") {
+      return NextResponse.json({ success: false, error: "Service temporarily unavailable. Please try again later." }, { status: 503 })
+    }
 
     // --- Redirect to thank-you page for HTML form submissions ---
     const acceptHeader = request.headers.get("accept") ?? ""
@@ -118,7 +161,7 @@ export async function POST(request: Request) {
         "Your operation brief is in the queue. We will review the workflow and follow up with a practical next step.",
     })
   } catch (err) {
-    console.error("[api/contact] Error processing lead:", err)
+    console.error("[api/contact] Error processing lead:", err instanceof Error ? err.message : "unknown")
     return NextResponse.json(
       {
         success: false,

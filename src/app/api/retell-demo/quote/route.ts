@@ -8,9 +8,9 @@ export async function POST(request: Request) {
   const raw = await request.text()
   if (!verifyRetell(request, raw)) return NextResponse.json({ ok: false }, { status: 401 })
   const body = JSON.parse(raw) as Record<string, unknown>
-  const pickup = String(body.pickup_address || "").trim()
-  const destination = String(body.destination_address || "").trim()
-  const passengers = Math.max(1, Number(body.passenger_count) || 1)
+  const pickup = String(body.pickup_address || "").trim().slice(0, 240)
+  const destination = String(body.destination_address || "").trim().slice(0, 240)
+  const passengers = Math.max(1, Math.min(80, Math.trunc(Number(body.passenger_count) || 1)))
   if (!pickup || !destination || !normalizeDemoPhone(body.phone)) return NextResponse.json({ ok: false, error: "Missing trip details." }, { status: 400 })
   try {
     const route = await buildGlobalDemoQuote({ pickup, destination, passengers })
