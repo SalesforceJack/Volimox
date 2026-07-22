@@ -1,10 +1,47 @@
 import { sendLeadNotification, validateSmtpConfig } from "@/lib/mail"
-import { deterministicEvent, message, projectSideEffectRecord, recoverySmsBody, scheduledFollowUpSmsBody, upsertEvent, publicBaseUrl, saveFollowUpSession, type FollowUpDemoSession } from "@/lib/follow-up-demo"
+import { deterministicEvent, message, projectSideEffectRecord, recoverySmsBody, scheduledFollowUpSmsBody, upsertEvent, upsertMessageBySid, publicBaseUrl, saveFollowUpSession, type FollowUpDemoSession } from "@/lib/follow-up-demo"
 import { cancelScheduledSms, sendFollowUpSms, validateTwilioConfig, validateTwilioSchedulingConfig } from "@/lib/twilio-demo"
-import { createSideEffectStore, executeSideEffect, deriveSideEffectId, ProviderRejectedError, SideEffectPreflightError } from "@/lib/side-effect-machine"
+import { createSideEffectStore, executeSideEffect, deriveSideEffectId, ProviderRejectedError, SideEffectPreflightError, type SideEffectStore } from "@/lib/side-effect-machine"
 import { demoDb, getDemoTenantId, getSideEffectsCollection, getInboundSmsClaimsCollection } from "@/lib/firebase-admin"
 
 const OPT_OUT_KEYWORDS = /^(stop|stopall|unsubscribe|cancel|end|quit)\b/i
+
+async function completeInboundClaim(store: SideEffectStore | null, id?: string, ownerId?: string, providerId?: string) {
+  if (!store || !id || !ownerId) return
+  try {
+    await store.markDispatching(id, ownerId)
+    await store.markCompleted(id, ownerId, "completed", providerId)
+  } catch (error) {
+    console.error("[follow-up-demo/inbound-complete]", error)
+  }
+}
+
+async function retryInboundClaim(store: SideEffectStore | null, id?: string, ownerId?: string, reason = "reply_not_dispatched") {
+  if (!store || !id || !ownerId) return
+  await store.markFailedBeforeDispatch(id, ownerId, reason).catch((error) => {
+    console.error("[follow-up-demo/inbound-retryable]", error)
+  })
+}
+
+async function rejectInboundClaim(store: SideEffectStore | null, id?: string, ownerId?: string, reason = "provider_rejected") {
+  if (!store || !id || !ownerId) return
+  try {
+    await store.markDispatching(id, ownerId)
+    await store.markProviderRejected(id, ownerId, reason)
+  } catch (error) {
+    console.error("[follow-up-demo/inbound-rejected]", error)
+  }
+}
+
+async function markInboundClaimUncertain(store: SideEffectStore | null, id?: string, ownerId?: string, providerId?: string) {
+  if (!store || !id || !ownerId) return
+  try {
+    await store.markDispatching(id, ownerId)
+    await store.markUncertain(id, ownerId, "reply_status_unconfirmed", providerId)
+  } catch (error) {
+    console.error("[follow-up-demo/inbound-uncertain]", error)
+  }
+}
 
 export async function triggerMissedCallRecovery(session: FollowUpDemoSession, request: Request) {
   const recoveryEventId = `recovery-started-${session.id}`
@@ -22,8 +59,8 @@ export async function triggerMissedCallRecovery(session: FollowUpDemoSession, re
     const store = createSideEffectStore(db, sideEffectsRef)
     const recoveryOutcome = await executeSideEffect(
       store,
-      deriveSideEffectId(session.id, 'recovery-sms'),
-      'recovery-sms',
+      deriveSideEffectId(session.id, "recovery-sms"),
+      "recovery-sms",
       async () => {
         const res = await sendFollowUpSms({ to: session.phone, body: smsBody, statusCallback })
         return { value: res, providerId: res.sid, providerMetadata: { from: res.from, status: res.status } }
@@ -56,8 +93,12 @@ export async function triggerMissedCallRecovery(session: FollowUpDemoSession, re
       projectSideEffectRecord(session, "recovery-sms", { id: recoveryEventId, operationType: "recovery-sms", state: "uncertain_after_dispatch" })
     } else if (recoveryOutcome.kind === "reconciliation_required") {
       projectSideEffectRecord(session, "recovery-sms", { id: recoveryEventId, operationType: "recovery-sms", state: "uncertain_after_dispatch", providerId: recoveryOutcome.providerId, providerMetadata: recoveryOutcome.providerMetadata })
-    } else if (recoveryOutcome.kind === "preflight_failed" || recoveryOutcome.kind === "provider_rejected" || recoveryOutcome.kind === "persistence_unavailable") {
+    } else if (recoveryOutcome.kind === "preflight_failed") {
+      projectSideEffectRecord(session, "recovery-sms", { id: recoveryEventId, operationType: "recovery-sms", state: "failed_before_dispatch" })
+    } else if (recoveryOutcome.kind === "provider_rejected") {
       projectSideEffectRecord(session, "recovery-sms", { id: recoveryEventId, operationType: "recovery-sms", state: "provider_rejected" })
+    } else if (recoveryOutcome.kind === "persistence_unavailable") {
+      session.recoverySmsState = "failed"
     }
 
     if (recoveryCompleted) {
@@ -108,9 +149,10 @@ export async function triggerMissedCallRecovery(session: FollowUpDemoSession, re
     } else {
       upsertEvent(session, deterministicEvent(recoveryEventId, "sms.failed", "SMS could not be sent", "The text-back could not be started with the current configuration.", "sms", "failed"))
     }
-  } catch {
-    session.recoverySmsState = "uncertain_after_dispatch"
-    upsertEvent(session, deterministicEvent(`recovery-uncertain-${session.id}`, "sms.recovery_uncertain", "Text-back status is being verified", "The text-back state could not be confirmed.", "sms", "failed"))
+  } catch (error) {
+    session.recoverySmsState = "failed"
+    upsertEvent(session, deterministicEvent(`recovery-failed-${session.id}`, "sms.failed", "SMS could not be sent", "The text-back could not be started safely.", "sms", "failed"))
+    console.error("[follow-up-demo/recovery]", error)
   }
   await saveFollowUpSession(session)
   return session
@@ -123,6 +165,7 @@ export async function processInboundDemoSms(session: FollowUpDemoSession, rawBod
   const db = demoDb()
   const tenantId = getDemoTenantId()
   const inboundClaimsRef = db ? getInboundSmsClaimsCollection(db, tenantId) : null
+  const sideEffectsRef = db ? getSideEffectsCollection(db, tenantId) : null
   const inboundStore = sid ? createSideEffectStore(db, inboundClaimsRef) : null
   let claimDocId: string | undefined
   let claimOwnerId: string | undefined
@@ -132,16 +175,19 @@ export async function processInboundDemoSms(session: FollowUpDemoSession, rawBod
     if (!claim.claimed) return session
     claimOwnerId = claim.ownerId
     if (!claimOwnerId) return session
-    try {
-      await inboundStore!.markDispatching(claimDocId, claimOwnerId)
-    } catch {
-      return session
-    }
   }
 
-  const inboundMessage = message("inbound", body, "received", sid)
-  if (sid) inboundMessage.id = `inbound-${sid}`
-  session.messages.push(inboundMessage)
+  if (sid) {
+    const existingInbound = session.messages.find((item) => item.sid === sid)
+    if (existingInbound) {
+      existingInbound.body = existingInbound.body || body
+      existingInbound.status = "received"
+    } else {
+      session.messages.push({ ...message("inbound", body, "received", sid), id: `inbound-${sid}` })
+    }
+  } else {
+    session.messages.push(message("inbound", body, "received"))
+  }
   session.status = "engaged"
   upsertEvent(session, deterministicEvent(sid ? `customer-replied-${sid}` : `customer-replied-${session.id}-${session.messages.length}`, "customer.replied", "Customer replied", body, "sms", "completed"))
 
@@ -162,24 +208,20 @@ export async function processInboundDemoSms(session: FollowUpDemoSession, rawBod
       }
     }
     await saveFollowUpSession(session)
-    if (claimDocId && claimOwnerId) {
-      await inboundStore!.markCompleted(claimDocId, claimOwnerId, "completed").catch((error) => {
-        console.error("[follow-up-demo/inbound-complete]", error)
-      })
-    }
+    await completeInboundClaim(inboundStore, claimDocId, claimOwnerId)
     return session
   }
 
   if (session.scheduledMessageSid) {
     try {
       await cancelScheduledSms(session.scheduledMessageSid)
-        session.scheduledMessageStatus = "canceled"
-        session.events = session.events.map((item) => item.type === "follow_up.scheduled" ? { ...item, status: "completed", detail: "Canceled because the customer replied." } : item)
-        session.scheduledMessageSid = undefined
-      } catch (error) {
-        session.scheduledMessageStatus = "cancellation_uncertain"
-        upsertEvent(session, deterministicEvent(`follow-up-cancel-uncertain-${session.id}`, "follow_up.cancel_uncertain", "Follow-up cancel uncertain", "The scheduled message was not confirmed canceled.", "sms", "failed"))
-        console.error("[follow-up-demo/cancel-scheduled]", error)
+      session.scheduledMessageStatus = "canceled"
+      session.events = session.events.map((item) => item.type === "follow_up.scheduled" ? { ...item, status: "completed", detail: "Canceled because the customer replied." } : item)
+      session.scheduledMessageSid = undefined
+    } catch (error) {
+      session.scheduledMessageStatus = "cancellation_uncertain"
+      upsertEvent(session, deterministicEvent(`follow-up-cancel-uncertain-${session.id}`, "follow_up.cancel_uncertain", "Follow-up cancel uncertain", "The scheduled message was not confirmed canceled.", "sms", "failed"))
+      console.error("[follow-up-demo/cancel-scheduled]", error)
     }
   }
 
@@ -191,59 +233,108 @@ export async function processInboundDemoSms(session: FollowUpDemoSession, rawBod
       ? "Got it. What is the best time for the technician to call or arrive?"
       : "Thank you. We captured the job details and notified the team. They can now follow up with the full context."
   const statusCallback = `${publicBaseUrl(request)}/api/follow-up-demo/twilio/status?sessionId=${encodeURIComponent(session.id)}&channel=sms`
+  const replyEffectId = deriveSideEffectId(session.id, "inbound-reply-sms", sid || String(inboundCount))
+  const replyStore = createSideEffectStore(db, sideEffectsRef)
+  const replyOutcome = await executeSideEffect(
+    replyStore,
+    replyEffectId,
+    "inbound-reply-sms",
+    async () => {
+      const sms = await sendFollowUpSms({ to: session.phone, body: reply, statusCallback })
+      return { value: sms, providerId: sms.sid, providerMetadata: { from: sms.from, status: sms.status } }
+    },
+    {
+      sessionId: session.id,
+      preflight: () => {
+        const config = validateTwilioConfig()
+        if (!config.configured) throw new SideEffectPreflightError(config.reasonCode || "not_configured")
+      },
+    },
+  )
 
   let replyProviderId: string | undefined
-  try {
-    const sms = await sendFollowUpSms({ to: session.phone, body: reply, statusCallback })
-    replyProviderId = sms.sid
+  let replyAccepted = false
+  if (replyOutcome.kind === "executed") {
+    replyProviderId = replyOutcome.providerId
+    if (replyOutcome.providerMetadata?.from) session.twilioNumber = replyOutcome.providerMetadata.from
+    if (replyProviderId) upsertMessageBySid(session, reply, replyOutcome.providerMetadata?.status || "queued", replyProviderId)
+    replyAccepted = Boolean(replyProviderId)
+  } else if (replyOutcome.kind === "already_completed") {
+    replyProviderId = replyOutcome.record.providerId
+    if (replyOutcome.record.providerMetadata?.from) session.twilioNumber = replyOutcome.record.providerMetadata.from
+    if (replyProviderId) upsertMessageBySid(session, reply, replyOutcome.record.providerMetadata?.status || "queued", replyProviderId)
+    replyAccepted = Boolean(replyProviderId)
+  } else if (replyOutcome.kind === "reconciliation_required") {
+    replyProviderId = replyOutcome.providerId
+    if (replyOutcome.providerMetadata?.from) session.twilioNumber = replyOutcome.providerMetadata.from
+    if (replyProviderId) upsertMessageBySid(session, reply, replyOutcome.providerMetadata?.status || "queued", replyProviderId)
+    upsertEvent(session, deterministicEvent(`agent-reply-uncertain-${sid || replyEffectId}`, "agent.reply_uncertain", "Automated reply status is being verified", "The reply was not retried because provider confirmation is incomplete.", "sms", "failed"))
+    await saveFollowUpSession(session)
+    await markInboundClaimUncertain(inboundStore, claimDocId, claimOwnerId, replyProviderId)
+    return session
+  } else if (replyOutcome.kind === "uncertain") {
+    upsertEvent(session, deterministicEvent(`agent-reply-uncertain-${sid || replyEffectId}`, "agent.reply_uncertain", "Automated reply status is being verified", "The reply was not retried because provider confirmation is incomplete.", "sms", "failed"))
+    await saveFollowUpSession(session)
+    await markInboundClaimUncertain(inboundStore, claimDocId, claimOwnerId)
+    return session
+  } else if (replyOutcome.kind === "already_dispatching") {
+    upsertEvent(session, deterministicEvent(`agent-reply-running-${sid || replyEffectId}`, "agent.reply_pending", "Automated reply is in progress", "The provider is still confirming the reply.", "sms", "running"))
+    await saveFollowUpSession(session)
+    return session
+  } else if (replyOutcome.kind === "preflight_failed" || replyOutcome.kind === "persistence_unavailable") {
+    upsertEvent(session, deterministicEvent(`agent-reply-failed-${sid || replyEffectId}`, "agent.reply_failed", "Automated reply could not start", "The reply provider is temporarily unavailable.", "sms", "failed"))
+    await saveFollowUpSession(session)
+    await retryInboundClaim(inboundStore, claimDocId, claimOwnerId, replyOutcome.kind)
+    return session
+  } else if (replyOutcome.kind === "provider_rejected") {
+    upsertEvent(session, deterministicEvent(`agent-reply-failed-${sid || replyEffectId}`, "agent.reply_failed", "Automated reply was rejected", "The provider rejected the reply request.", "sms", "failed"))
+    await saveFollowUpSession(session)
+    await rejectInboundClaim(inboundStore, claimDocId, claimOwnerId, replyOutcome.errorCategory)
+    return session
+  }
 
-    if (!session.twilioNumber && sms.from) session.twilioNumber = sms.from
-    session.messages.push(message("outbound", reply, sms.status, sms.sid))
-    upsertEvent(session, deterministicEvent(replyProviderId ? `agent-replied-${replyProviderId}` : `agent-replied-${session.id}-${inboundCount}`, "agent.replied", "Automated reply sent", inboundCount === 1 ? "Address and urgency requested" : inboundCount === 2 ? "Service timing requested" : "Lead intake completed", "sms", "completed"))
+  if (!replyAccepted || !replyProviderId) {
+    upsertEvent(session, deterministicEvent(`agent-reply-uncertain-${sid || replyEffectId}`, "agent.reply_uncertain", "Automated reply status is being verified", "The provider response did not contain a durable message identifier.", "sms", "failed"))
+    await saveFollowUpSession(session)
+    await markInboundClaimUncertain(inboundStore, claimDocId, claimOwnerId)
+    return session
+  }
 
-    if (inboundCount >= 3) {
-      session.status = "completed"
-        upsertEvent(session, deterministicEvent(`lead-created-${session.id}`, "lead.created", "Job lead ready", `${session.businessType} request routed with conversation context`, "lead", "completed"))
+  upsertEvent(session, deterministicEvent(`agent-replied-${replyProviderId}`, "agent.replied", "Automated reply sent", inboundCount === 1 ? "Address and urgency requested" : inboundCount === 2 ? "Service timing requested" : "Lead intake completed", "sms", "completed"))
 
-      const sideEffectsRef = db ? getSideEffectsCollection(db, tenantId) : null
-      const store = createSideEffectStore(db, sideEffectsRef)
-      await executeSideEffect(
-        store,
-        deriveSideEffectId(session.id, 'completed-lead-email'),
-        'completed-lead-email',
-        async () => {
-          const res = await sendLeadNotification({
-            fullName: session.fullName,
-            email: session.email,
-            companyName: session.companyName,
-            industry: session.businessType,
-            projectScope: session.messages.filter((item) => item.direction === "inbound").map((item) => item.body).join(" | "),
-            estimatedVolume: "Live demo lead",
-          })
-          if (res.sent === false) throw new ProviderRejectedError(res.reasonCode)
-          return { value: { success: true }, providerId: res.providerId }
+  if (inboundCount >= 3) {
+    session.status = "completed"
+    upsertEvent(session, deterministicEvent(`lead-created-${session.id}`, "lead.created", "Job lead ready", `${session.businessType} request routed with conversation context`, "lead", "completed"))
+
+    await executeSideEffect(
+      replyStore,
+      deriveSideEffectId(session.id, "completed-lead-email"),
+      "completed-lead-email",
+      async () => {
+        const res = await sendLeadNotification({
+          fullName: session.fullName,
+          email: session.email,
+          companyName: session.companyName,
+          industry: session.businessType,
+          projectScope: session.messages.filter((item) => item.direction === "inbound").map((item) => item.body).join(" | "),
+          estimatedVolume: "Live demo lead",
+        })
+        if (res.sent === false) throw new ProviderRejectedError(res.reasonCode)
+        return { value: { success: true }, providerId: res.providerId }
+      },
+      {
+        sessionId: session.id,
+        preflight: () => {
+          if (!validateSmtpConfig().configured) throw new SideEffectPreflightError("not_configured")
         },
-          {
-            sessionId: session.id,
-            preflight: () => {
-              if (!validateSmtpConfig().configured) throw new SideEffectPreflightError("not_configured")
-            },
-          },
-        ).catch((error) => console.error("[follow-up-demo/completed-lead]", error))
-    }
-  } catch (error) {
-    if (claimDocId && claimOwnerId) {
-      await inboundStore!.markUncertain(claimDocId, claimOwnerId, "unknown_error").catch((markError) => {
-        console.error("[follow-up-demo/inbound-uncertain]", markError)
-      })
-    }
-    upsertEvent(session, deterministicEvent(sid ? `agent-reply-failed-${sid}` : `agent-reply-failed-${session.id}-${inboundCount}`, "agent.reply_failed", "Automated reply failed", "The reply SMS could not be delivered.", "sms", "failed"))
+      },
+    ).catch((error) => console.error("[follow-up-demo/completed-lead]", error))
   }
+
+  // The session is committed before the MessageSid claim is completed. If the
+  // save fails, Twilio can retry; the deterministic reply side effect then
+  // reconstructs the provider SID without sending a second SMS.
   await saveFollowUpSession(session)
-  if (replyProviderId && claimDocId && claimOwnerId) {
-    await inboundStore!.markCompleted(claimDocId, claimOwnerId, "completed", replyProviderId).catch((error) => {
-      console.error("[follow-up-demo/inbound-complete]", error)
-    })
-  }
+  await completeInboundClaim(inboundStore, claimDocId, claimOwnerId, replyProviderId)
   return session
 }
