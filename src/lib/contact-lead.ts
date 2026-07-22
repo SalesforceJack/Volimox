@@ -19,6 +19,22 @@ export type ContactLeadRecord = LeadFormData & {
   notificationStatus: ContactLeadNotificationStatus
 }
 
+const NOTIFICATION_STATUS_RANK: Record<ContactLeadNotificationStatus, number> = {
+  pending: 0,
+  failed: 1,
+  uncertain_after_dispatch: 2,
+  reconciliation_required: 3,
+  sent: 4,
+}
+
+export function mergeContactLeadNotificationStatus(
+  existing: ContactLeadNotificationStatus,
+  incoming: ContactLeadNotificationStatus,
+): ContactLeadNotificationStatus {
+  if (existing === "sent" || incoming === "sent") return "sent"
+  return NOTIFICATION_STATUS_RANK[incoming] >= NOTIFICATION_STATUS_RANK[existing] ? incoming : existing
+}
+
 export async function persistContactLead(db: Firestore, lead: LeadFormData, tenantId = getDemoTenantId()) {
   const leadId = deriveContactLeadEffectId(lead)
   const docRef = getContactLeadsCollection(db, tenantId).doc(leadId)
@@ -52,10 +68,21 @@ export async function updateContactLeadNotification(
   providerId?: string,
   tenantId = getDemoTenantId(),
 ) {
-  const update: Record<string, unknown> = {
-    notificationStatus: status,
-    updatedAtServer: FieldValue.serverTimestamp(),
-  }
-  if (providerId) update.notificationProviderId = providerId
-  await getContactLeadsCollection(db, tenantId).doc(leadId).update(update)
+  const docRef = getContactLeadsCollection(db, tenantId).doc(leadId)
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(docRef)
+    if (!snapshot.exists) throw new Error("contact_lead_not_found")
+
+    const existing = snapshot.data() as Partial<ContactLeadRecord> & { notificationProviderId?: string }
+    const existingStatus = existing.notificationStatus || "pending"
+    const mergedStatus = mergeContactLeadNotificationStatus(existingStatus, status)
+    const update: Record<string, unknown> = {
+      notificationStatus: mergedStatus,
+      updatedAtServer: FieldValue.serverTimestamp(),
+    }
+
+    const durableProviderId = providerId || existing.notificationProviderId
+    if (durableProviderId) update.notificationProviderId = durableProviderId
+    transaction.update(docRef, update)
+  })
 }
