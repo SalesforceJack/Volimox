@@ -8,6 +8,7 @@
     "start": "next start -p 3002",
     "lint": "tsc --noEmit",
     "test": "npx tsx --tsconfig tsconfig.json src/tests/side-effect-machine.test.ts",
+    "test:firestore": "npx tsx --tsconfig tsconfig.json src/tests/firestore-side-effect.test.ts",
     "retell:sync-demo": "node scripts/sync-retell-demo-agent.mjs"
   },
   "dependencies": {

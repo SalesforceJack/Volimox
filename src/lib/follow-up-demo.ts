@@ -2,6 +2,7 @@ import crypto from "node:crypto"
 import { FieldValue, Timestamp } from "firebase-admin/firestore"
 import { demoDb, getDemoTenantId, getFollowUpSessionsCollection, isProductionFirebaseRequired } from "@/lib/firebase-admin"
 import { normalizeDemoPhone } from "@/lib/volimox-demo"
+import type { SideEffectRecord } from "@/lib/side-effect-machine"
 
 export type FollowUpChannel = "system" | "sms" | "email" | "call" | "lead"
 export type FollowUpEventStatus = "waiting" | "running" | "completed" | "failed"
@@ -53,6 +54,51 @@ export type FollowUpDemoSession = {
   createdAt: string
   updatedAt: string
   expiresAt: string
+}
+
+export type FollowUpSideEffectOperation = "initial-call" | "initial-email" | "callback-call" | "lead-notification" | "scheduled-follow-up-sms"
+
+export function projectSideEffectRecord(session: FollowUpDemoSession, operation: FollowUpSideEffectOperation, record: SideEffectRecord) {
+  const state = record.state
+
+  if (operation === "initial-call") {
+    if (record.providerId) session.twilioCallSid = record.providerId
+    if (state === "started" || state === "sent") session.initialCallState = "started"
+    else if (state === "completed") session.initialCallState = "completed"
+    else if (state === "claiming" || state === "dispatching") session.initialCallState = state
+    else if (state === "uncertain_after_dispatch") session.initialCallState = "uncertain_after_dispatch"
+    else session.initialCallState = "failed"
+    return session
+  }
+
+  if (operation === "initial-email") {
+    if (state === "sent") session.initialEmailState = "sent"
+    else if (state === "completed") session.initialEmailState = "completed"
+    else if (state === "claiming" || state === "dispatching") session.initialEmailState = state
+    else if (state === "uncertain_after_dispatch") session.initialEmailState = "uncertain_after_dispatch"
+    else session.initialEmailState = "failed"
+    return session
+  }
+
+  if (operation === "callback-call") {
+    if (state === "started" || state === "sent") session.callbackCallState = "started"
+    else if (state === "completed") session.callbackCallState = "completed"
+    else if (state === "claiming" || state === "dispatching") session.callbackCallState = state
+    else if (state === "uncertain_after_dispatch") session.callbackCallState = "uncertain_after_dispatch"
+    else session.callbackCallState = "failed"
+    return session
+  }
+
+  if (operation === "lead-notification") {
+    if (state === "sent" || state === "completed") session.leadNotificationState = "sent"
+    else if (state === "claiming" || state === "dispatching") session.leadNotificationState = "dispatching"
+    else if (state === "uncertain_after_dispatch") session.leadNotificationState = "uncertain"
+    else session.leadNotificationState = "failed"
+    return session
+  }
+
+  if (record.providerId) session.scheduledMessageSid = record.providerId
+  return session
 }
 
 export interface PublicFollowUpDemoSession {

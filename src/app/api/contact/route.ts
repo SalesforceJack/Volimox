@@ -17,8 +17,9 @@ import { sendLeadNotification, validateSmtpConfig } from "@/lib/mail"
 import type { LeadFormData } from "@/lib/mail"
 import { getClientIp } from "@/lib/demo-rate-limit"
 import { checkDurableRateLimit } from "@/lib/durable-rate-limit"
-import { createSideEffectStore, executeSideEffect, deriveSideEffectId, ProviderRejectedError, SideEffectPreflightError } from "@/lib/side-effect-machine"
+import { createSideEffectStore, executeSideEffect, ProviderRejectedError, SideEffectPreflightError } from "@/lib/side-effect-machine"
 import { demoDb, getSideEffectsCollection } from "@/lib/firebase-admin"
+import { deriveContactLeadEffectId } from "@/lib/contact-idempotency"
 
 // ---------------------------------------------------------------------------
 // POST handler
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
       estimatedVolume,
     }
 
-    const effectId = deriveSideEffectId("contact-lead", email, companyName)
+    const effectId = deriveContactLeadEffectId(lead)
     const db = demoDb()
     const collection = db ? getSideEffectsCollection(db) : null
 

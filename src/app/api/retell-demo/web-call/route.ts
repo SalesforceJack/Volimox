@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getClientIp } from "@/lib/demo-rate-limit"
 import { checkDurableRateLimit } from "@/lib/durable-rate-limit"
-import { createSideEffectStore, executeSideEffect, deriveSideEffectId, ProviderRejectedError } from "@/lib/side-effect-machine"
+import { createSideEffectStore, executeSideEffect, deriveSideEffectId, isTransientProviderHttpStatus, ProviderRejectedError } from "@/lib/side-effect-machine"
 import { demoDb, getSideEffectsCollection, isProductionFirebaseRequired } from "@/lib/firebase-admin"
 
 export const runtime = "nodejs"
@@ -35,9 +35,10 @@ export async function POST(request: Request) {
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({ agent_id: agentId, metadata: { source: "volimox-website", demo: true } }),
         cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
       })
       const data = await response.json().catch(() => null)
-      if (!response.ok && response.status >= 400 && response.status < 500) {
+      if (!response.ok && response.status >= 400 && response.status < 500 && !isTransientProviderHttpStatus(response.status)) {
         throw new ProviderRejectedError(`retell_${response.status}`)
       }
       if (!response.ok) throw new Error(data?.message || "Retell did not return a session.")

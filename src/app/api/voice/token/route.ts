@@ -1,6 +1,6 @@
 import { GoogleGenAI, Modality } from "@google/genai"
 import { NextResponse } from "next/server"
-import { getClientIp, withinDemoRateLimit } from "@/lib/demo-rate-limit"
+import { getClientIp } from "@/lib/demo-rate-limit"
 import { checkDurableRateLimit } from "@/lib/durable-rate-limit"
 import { getMoxAgent } from "@/lib/mox-agents"
 
@@ -12,9 +12,6 @@ export async function POST(request: Request) {
   const isLocalDemo = hostname === "localhost" || hostname === "127.0.0.1"
   const limit = isLocalDemo ? Math.max(configuredLimit, 50) : configuredLimit
   const ip = getClientIp(request)
-  if (!withinDemoRateLimit(`voice:${ip}`, limit, 60 * 60 * 1000)) {
-    return NextResponse.json({ error: "Voice demo limit reached. Please try again later." }, { status: 429 })
-  }
   const durableAllowed = await checkDurableRateLimit(`voice:${ip}`, limit, 60 * 60 * 1000, { failClosed: !isLocalDemo })
   if (!durableAllowed) {
     return NextResponse.json({ error: "Voice demo limit reached. Please try again later." }, { status: 429 })

@@ -23,10 +23,10 @@ export function validateSmtpConfig(): { configured: boolean } {
   return { configured: Boolean(user && pass) }
 }
 
-function isDefinitiveSmtpRejection(error: unknown): boolean {
+export function isDefinitiveSmtpRejection(error: unknown): boolean {
   if (!error || typeof error !== "object") return false
   const responseCode = Number((error as { responseCode?: unknown }).responseCode)
-  return Number.isInteger(responseCode) && responseCode >= 400 && responseCode < 600
+  return Number.isInteger(responseCode) && responseCode >= 500 && responseCode < 600
 }
 
 // ---------------------------------------------------------------------------

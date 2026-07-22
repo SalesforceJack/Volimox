@@ -1,3 +1,5 @@
+import crypto from "node:crypto"
+
 /**
  * Volimox — Side-effect machine acceptance tests
  *
@@ -20,10 +22,16 @@ import {
   SideEffectPreflightError,
   SideEffectPersistenceUnavailableError,
   deriveSideEffectId,
+  isTransientProviderHttpStatus,
   type SideEffectOutcome,
 } from "../lib/side-effect-machine.js"
 import { canReleaseProviderSyncLease, providerSyncBlockReason } from "../lib/provider-sync-lease.js"
 import { hashRateLimitKey } from "../lib/durable-rate-limit.js"
+import { isDefinitiveSmtpRejection } from "../lib/mail.js"
+import { validateTwilioSchedulingConfig } from "../lib/twilio-demo.js"
+import { createFollowUpSession, projectSideEffectRecord } from "../lib/follow-up-demo.js"
+import { deriveContactLeadEffectId } from "../lib/contact-idempotency.js"
+import { withinDemoRateLimit } from "../lib/demo-rate-limit.js"
 
 // ---------------------------------------------------------------------------
 // Minimal test harness (no external framework)
@@ -362,6 +370,128 @@ async function runTests() {
       if (previousLinkSecret === undefined) delete process.env.VOLIMOX_DEMO_LINK_SECRET
       else process.env.VOLIMOX_DEMO_LINK_SECRET = previousLinkSecret
     }
+  })
+
+  await test("stale dispatching records become uncertain without invoking the provider", async () => {
+    const store = new InMemorySideEffectStore()
+    const originalNow = Date.now
+    let now = 1_000_000
+    Date.now = () => now
+    try {
+      const id = deriveSideEffectId("test", "stale-dispatch")
+      const first = await store.claim(id, "test-op", { dispatchTimeoutMs: 60_000 })
+      assert(first.claimed && Boolean(first.ownerId), "initial claim should succeed")
+      await store.markDispatching(id, first.ownerId!)
+      now += 60_001
+
+      const staleClaim = await store.claim(id, "test-op", { dispatchTimeoutMs: 60_000 })
+      assert(!staleClaim.claimed && staleClaim.reason === "terminal", "stale dispatch should stop claiming")
+      assert(staleClaim.record?.state === "uncertain_after_dispatch", "stale dispatch should become uncertain")
+
+      let providerCalls = 0
+      const retry = await executeSideEffect(store, id, "test-op", async () => {
+        providerCalls++
+        return { value: true }
+      })
+      assert(retry.kind === "uncertain", `expected uncertain retry, got ${retry.kind}`)
+      assert(providerCalls === 0, `provider invoked ${providerCalls} times after stale dispatch`)
+    } finally {
+      Date.now = originalNow
+    }
+  })
+
+  await test("expired completed records can be reclaimed while uncertain records stay terminal", async () => {
+    const store = new InMemorySideEffectStore()
+    const originalNow = Date.now
+    let now = 2_000_000
+    Date.now = () => now
+    try {
+      const completedId = deriveSideEffectId("test", "expired-completed")
+      const completed = await executeSideEffect(store, completedId, "test-op", dispatchOnce(true), { ttlHours: 1 / 3600 })
+      assert(completed.kind === "executed", "initial completed operation should execute")
+      now += 1_001
+      const reclaimed = await store.claim(completedId, "test-op", { ttlHours: 1 / 3600 })
+      assert(reclaimed.claimed, "expired completed record should be reclaimable")
+
+      const uncertainId = deriveSideEffectId("test", "expired-uncertain")
+      const uncertain = await executeSideEffect(store, uncertainId, "test-op", dispatchErrors("network timeout"), { ttlHours: 1 / 3600 })
+      assert(uncertain.kind === "uncertain", "uncertain operation should be recorded")
+      now += 1_001
+      const blocked = await store.claim(uncertainId, "test-op", { ttlHours: 1 / 3600 })
+      assert(!blocked.claimed && blocked.reason === "terminal", "uncertain operation must not be retried blindly")
+    } finally {
+      Date.now = originalNow
+    }
+  })
+
+  await test("provider status and SMTP classification preserve transient failures", () => {
+    assert(isTransientProviderHttpStatus(408), "408 should be transient")
+    assert(isTransientProviderHttpStatus(429), "429 should be transient")
+    assert(isTransientProviderHttpStatus(503), "5xx should be uncertain/transient")
+    assert(!isTransientProviderHttpStatus(400), "400 should remain terminal")
+    assert(!isDefinitiveSmtpRejection({ responseCode: 450 }), "SMTP 4xx should remain uncertain")
+    assert(isDefinitiveSmtpRejection({ responseCode: 550 }), "SMTP 5xx should be terminal")
+  })
+
+  await test("scheduled SMS configuration requires a Messaging Service", () => {
+    const keys = ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_MESSAGING_SERVICE_SID", "VOLIMOX_DEMO_PHONE_NUMBER"] as const
+    const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]))
+    try {
+      process.env.TWILIO_ACCOUNT_SID = "ACtest"
+      process.env.TWILIO_AUTH_TOKEN = "test-token"
+      process.env.VOLIMOX_DEMO_PHONE_NUMBER = "+12025550123"
+      delete process.env.TWILIO_MESSAGING_SERVICE_SID
+      assert(validateTwilioSchedulingConfig().reasonCode === "scheduled_messaging_service_missing", "scheduled SMS should reject a dedicated sender without Messaging Service")
+      process.env.TWILIO_MESSAGING_SERVICE_SID = "MGtest"
+      assert(validateTwilioSchedulingConfig().configured, "scheduled SMS should accept a configured Messaging Service")
+    } finally {
+      for (const key of keys) {
+        const value = previous[key]
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
+    }
+  })
+
+  await test("voice limiter allows the configured number of requests", () => {
+    const key = `test:voice-limit:${crypto.randomUUID()}`
+    assert(withinDemoRateLimit(key, 3, 60_000), "first request should pass")
+    assert(withinDemoRateLimit(key, 3, 60_000), "second request should pass")
+    assert(withinDemoRateLimit(key, 3, 60_000), "third request should pass")
+    assert(!withinDemoRateLimit(key, 3, 60_000), "fourth request should be rejected")
+  })
+
+  await test("completed side-effects reconstruct follow-up session state and provider IDs", () => {
+    const session = createFollowUpSession({
+      fullName: "Test User",
+      email: "test@example.com",
+      phone: "+12025550123",
+      companyName: "Test Company",
+      businessType: "Plumbing",
+      consentSms: true,
+      consentEmail: true,
+      consentCall: true,
+    })
+    projectSideEffectRecord(session, "initial-call", { id: "call", operationType: "initial-call", state: "started", providerId: "CA123" })
+    projectSideEffectRecord(session, "initial-email", { id: "email", operationType: "initial-email", state: "sent", providerId: "MSG123" })
+    projectSideEffectRecord(session, "lead-notification", { id: "lead", operationType: "lead-notification", state: "sent", providerId: "MSG456" })
+    assert(session.initialCallState === "started", "call state should be restored")
+    assert(session.twilioCallSid === "CA123", "call provider ID should be restored")
+    assert(session.initialEmailState === "sent", "email state should be restored")
+    assert(session.leadNotificationState === "sent", "lead state should be restored")
+  })
+
+  await test("contact idempotency changes when the brief payload changes", () => {
+    const base = {
+      fullName: "Test User",
+      email: "test@example.com",
+      companyName: "Test Company",
+      industry: "Plumbing",
+      projectScope: "Missed-call recovery",
+      estimatedVolume: "50",
+    }
+    assert(deriveContactLeadEffectId(base) === deriveContactLeadEffectId({ ...base }), "identical briefs should dedupe")
+    assert(deriveContactLeadEffectId(base) !== deriveContactLeadEffectId({ ...base, estimatedVolume: "100" }), "changed briefs should receive a new effect ID")
   })
 
   // ---------------------------------------------------------------------------

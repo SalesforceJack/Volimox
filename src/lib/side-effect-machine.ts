@@ -18,8 +18,15 @@ export interface SideEffectRecord {
   providerId?: string
   providerType?: string
   errorCategory?: string
-  expiresAtServer?: FirebaseFirestore.Timestamp
+  expiresAtServer?: FirebaseFirestore.Timestamp | number
   updatedAtServer?: FirebaseFirestore.FieldValue
+}
+
+export interface SideEffectClaimOptions {
+  sessionId?: string
+  claimTimeoutMs?: number
+  dispatchTimeoutMs?: number
+  ttlHours?: number
 }
 
 export interface ClaimResult {
@@ -30,7 +37,7 @@ export interface ClaimResult {
 }
 
 export interface SideEffectStore {
-  claim(id: string, operationType: string, opts?: { sessionId?: string; claimTimeoutMs?: number; ttlHours?: number }): Promise<ClaimResult>
+  claim(id: string, operationType: string, opts?: SideEffectClaimOptions): Promise<ClaimResult>
   markDispatching(id: string, ownerId: string): Promise<void>
   markCompleted(id: string, ownerId: string, completedState: "sent" | "started" | "completed", providerId?: string): Promise<void>
   markProviderRejected(id: string, ownerId: string, errorCategory: string): Promise<void>
@@ -68,6 +75,7 @@ export class SideEffectPersistenceUnavailableError extends Error {
 }
 
 const DEFAULT_CLAIM_TIMEOUT_MS = 60_000
+const DEFAULT_DISPATCH_TIMEOUT_MS = 120_000
 const DEFAULT_TTL_HOURS = 24
 
 const TERMINAL_STATES: SideEffectState[] = [
@@ -95,11 +103,37 @@ export function categorizeError(error?: string | unknown): string {
   return "provider_error"
 }
 
+export function isTransientProviderHttpStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || (status >= 500 && status <= 599)
+}
+
+function timestampMillis(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (value instanceof Date) return value.getTime()
+  if (value && typeof (value as { toMillis?: unknown }).toMillis === "function") {
+    const millis = (value as { toMillis: () => number }).toMillis()
+    return Number.isFinite(millis) ? millis : undefined
+  }
+  return undefined
+}
+
+function isExpired(record: SideEffectRecord, now: number): boolean {
+  const expiresAt = timestampMillis(record.expiresAtServer)
+  return expiresAt !== undefined && expiresAt <= now
+}
+
+function isStaleDispatch(record: SideEffectRecord, now: number, timeoutMs: number): boolean {
+  if (record.state !== "dispatching") return false
+  const dispatchStartedAt = record.dispatchedAt ?? record.claimedAt
+  return dispatchStartedAt !== undefined && now - dispatchStartedAt >= timeoutMs
+}
+
 export class FirestoreSideEffectStore implements SideEffectStore {
   constructor(private db: Firestore, private collectionRef: CollectionReference) {}
 
-  async claim(id: string, operationType: string, opts?: { sessionId?: string; claimTimeoutMs?: number; ttlHours?: number }): Promise<ClaimResult> {
+  async claim(id: string, operationType: string, opts?: SideEffectClaimOptions): Promise<ClaimResult> {
     const timeoutMs = opts?.claimTimeoutMs ?? DEFAULT_CLAIM_TIMEOUT_MS
+    const dispatchTimeoutMs = opts?.dispatchTimeoutMs ?? DEFAULT_DISPATCH_TIMEOUT_MS
     const ttlHours = opts?.ttlHours ?? DEFAULT_TTL_HOURS
 
     return this.db.runTransaction(async (tx) => {
@@ -110,11 +144,27 @@ export class FirestoreSideEffectStore implements SideEffectStore {
 
       if (snap.exists) {
         const data = snap.data() as SideEffectRecord
-        if (TERMINAL_STATES.includes(data.state)) {
-          return { claimed: false, record: data, reason: "terminal" }
-        }
         if (data.state === "dispatching") {
+          if (isStaleDispatch(data, now, dispatchTimeoutMs)) {
+            const uncertainRecord: SideEffectRecord = {
+              ...data,
+              state: "uncertain_after_dispatch",
+              errorCategory: "dispatch_timeout",
+              completedAt: now,
+            }
+            tx.update(docRef, {
+              state: "uncertain_after_dispatch",
+              errorCategory: "dispatch_timeout",
+              completedAt: now,
+              updatedAtServer: FieldValue.serverTimestamp(),
+            })
+            return { claimed: false, record: uncertainRecord, reason: "terminal" }
+          }
           return { claimed: false, record: data, reason: "active_lock" }
+        }
+        const expired = isExpired(data, now)
+        if (data.state === "uncertain_after_dispatch" || (TERMINAL_STATES.includes(data.state) && !expired)) {
+          return { claimed: false, record: data, reason: "terminal" }
         }
         if (data.state === "claiming" && data.claimedAt && now - data.claimedAt < timeoutMs) {
           return { claimed: false, record: data, reason: "active_lock" }
@@ -123,12 +173,29 @@ export class FirestoreSideEffectStore implements SideEffectStore {
         // Expired claim lock or failed_before_dispatch — re-claim
         tx.update(docRef, {
           state: "claiming",
+          operationType,
+          ...(opts?.sessionId ? { sessionId: opts.sessionId } : {}),
           claimedAt: now,
           claimOwnerId: ownerId,
+          dispatchedAt: FieldValue.delete(),
+          completedAt: FieldValue.delete(),
+          providerId: FieldValue.delete(),
+          errorCategory: FieldValue.delete(),
           expiresAtServer: Timestamp.fromDate(new Date(now + ttlHours * 60 * 60 * 1000)),
           updatedAtServer: FieldValue.serverTimestamp(),
         })
-        const updated: SideEffectRecord = { ...data, state: "claiming", claimedAt: now, claimOwnerId: ownerId }
+        const updated: SideEffectRecord = {
+          ...data,
+          state: "claiming",
+          operationType,
+          ...(opts?.sessionId ? { sessionId: opts.sessionId } : {}),
+          claimedAt: now,
+          claimOwnerId: ownerId,
+          dispatchedAt: undefined,
+          completedAt: undefined,
+          providerId: undefined,
+          errorCategory: undefined,
+        }
         return { claimed: true, ownerId, record: updated }
       }
 
@@ -136,7 +203,7 @@ export class FirestoreSideEffectStore implements SideEffectStore {
         id,
         state: "claiming",
         operationType,
-        sessionId: opts?.sessionId,
+        ...(opts?.sessionId ? { sessionId: opts.sessionId } : {}),
         claimedAt: now,
         claimOwnerId: ownerId,
         expiresAtServer: Timestamp.fromDate(new Date(now + ttlHours * 60 * 60 * 1000)),
@@ -215,24 +282,44 @@ export function createFirestoreSideEffectStore(db: Firestore, collectionRef: Col
 export class InMemorySideEffectStore implements SideEffectStore {
   private effects = new Map<string, SideEffectRecord>()
 
-  async claim(id: string, operationType: string, opts?: { sessionId?: string; claimTimeoutMs?: number; ttlHours?: number }): Promise<ClaimResult> {
+  async claim(id: string, operationType: string, opts?: SideEffectClaimOptions): Promise<ClaimResult> {
     const timeoutMs = opts?.claimTimeoutMs ?? DEFAULT_CLAIM_TIMEOUT_MS
+    const dispatchTimeoutMs = opts?.dispatchTimeoutMs ?? DEFAULT_DISPATCH_TIMEOUT_MS
+    const ttlHours = opts?.ttlHours ?? DEFAULT_TTL_HOURS
     const now = Date.now()
     const ownerId = crypto.randomUUID()
     const existing = this.effects.get(id)
 
     if (existing) {
-      if (TERMINAL_STATES.includes(existing.state)) {
-        return { claimed: false, record: existing, reason: "terminal" }
-      }
       if (existing.state === "dispatching") {
+        if (isStaleDispatch(existing, now, dispatchTimeoutMs)) {
+          const uncertain = { ...existing, state: "uncertain_after_dispatch" as const, errorCategory: "dispatch_timeout", completedAt: now }
+          this.effects.set(id, uncertain)
+          return { claimed: false, record: uncertain, reason: "terminal" }
+        }
         return { claimed: false, record: existing, reason: "active_lock" }
+      }
+      const expired = isExpired(existing, now)
+      if (existing.state === "uncertain_after_dispatch" || (TERMINAL_STATES.includes(existing.state) && !expired)) {
+        return { claimed: false, record: existing, reason: "terminal" }
       }
       if (existing.state === "claiming" && existing.claimedAt && now - existing.claimedAt < timeoutMs) {
         return { claimed: false, record: existing, reason: "active_lock" }
       }
 
-      const updated = { ...existing, state: "claiming" as const, claimedAt: now, claimOwnerId: ownerId }
+      const updated = {
+        ...existing,
+        state: "claiming" as const,
+        operationType,
+        ...(opts?.sessionId ? { sessionId: opts.sessionId } : {}),
+        claimedAt: now,
+        claimOwnerId: ownerId,
+        dispatchedAt: undefined,
+        completedAt: undefined,
+        providerId: undefined,
+        errorCategory: undefined,
+        expiresAtServer: now + ttlHours * 60 * 60 * 1000,
+      }
       this.effects.set(id, updated)
       return { claimed: true, ownerId, record: updated }
     }
@@ -244,6 +331,7 @@ export class InMemorySideEffectStore implements SideEffectStore {
       sessionId: opts?.sessionId,
       claimedAt: now,
       claimOwnerId: ownerId,
+      expiresAtServer: now + ttlHours * 60 * 60 * 1000,
     }
     this.effects.set(id, record)
     return { claimed: true, ownerId, record }
@@ -315,6 +403,7 @@ export async function executeSideEffect<T>(
   options?: {
     sessionId?: string
     claimTimeoutMs?: number
+    dispatchTimeoutMs?: number
     ttlHours?: number
     completedState?: "sent" | "started" | "completed"
     preflight?: () => Promise<void> | void

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { event, getFollowUpSession, publicBaseUrl, publicSession, readSessionToken, saveFollowUpSession } from "@/lib/follow-up-demo"
+import { event, getFollowUpSession, projectSideEffectRecord, publicBaseUrl, publicSession, readSessionToken, saveFollowUpSession } from "@/lib/follow-up-demo"
 import { getClientIp } from "@/lib/demo-rate-limit"
 import { checkDurableRateLimit } from "@/lib/durable-rate-limit"
 import { startDemoCall, validateTwilioCallConfig } from "@/lib/twilio-demo"
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       session.callbackCallState = "started"
       session.events.push(event("call.started", "Demo call started", `Twilio call ${outcome.value.status}`, "call", "running"))
     } else if (outcome.kind === "already_completed" || outcome.kind === "already_dispatching") {
-      // Ignored
+      projectSideEffectRecord(session, "callback-call", outcome.record)
     } else if (outcome.kind === "persistence_unavailable" || outcome.kind === "preflight_failed" || outcome.kind === "provider_rejected") {
       session.callbackCallState = "failed"
     } else {

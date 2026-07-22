@@ -1,5 +1,5 @@
 import crypto from "node:crypto"
-import { ProviderRejectedError } from "@/lib/side-effect-machine"
+import { isTransientProviderHttpStatus, ProviderRejectedError, SideEffectPreflightError } from "@/lib/side-effect-machine"
 
 function credentials() {
   const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim()
@@ -8,7 +8,7 @@ function credentials() {
   const dedicatedFrom = process.env.VOLIMOX_DEMO_PHONE_NUMBER?.trim() || process.env.TWILIO_DEMO_PHONE_NUMBER?.trim() || ""
   const from = dedicatedFrom || process.env.TWILIO_PHONE_NUMBER?.trim()
   if (!accountSid || !authToken) throw new Error("Twilio is not configured.")
-  return { accountSid, authToken, messagingServiceSid, from, dedicatedFrom: Boolean(dedicatedFrom) }
+  return { accountSid, authToken, messagingServiceSid, from }
 }
 
 export function validateTwilioConfig(): { configured: boolean; reasonCode?: string } {
@@ -31,6 +31,14 @@ export function validateTwilioCallConfig(): { configured: boolean; reasonCode?: 
   return from ? { configured: true } : { configured: false, reasonCode: "sender_missing" }
 }
 
+export function validateTwilioSchedulingConfig(): { configured: boolean; reasonCode?: string } {
+  const base = validateTwilioConfig()
+  if (!base.configured) return base
+  return process.env.TWILIO_MESSAGING_SERVICE_SID?.trim()
+    ? { configured: true }
+    : { configured: false, reasonCode: "scheduled_messaging_service_missing" }
+}
+
 async function twilioRequest(path: string, form: URLSearchParams) {
   const { accountSid, authToken } = credentials()
   const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/${path}`, {
@@ -41,10 +49,11 @@ async function twilioRequest(path: string, form: URLSearchParams) {
     },
     body: form.toString(),
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   })
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
-    if (response.status >= 400 && response.status < 500) {
+    if (response.status >= 400 && response.status < 500 && !isTransientProviderHttpStatus(response.status)) {
       throw new ProviderRejectedError(`twilio_${response.status}`)
     }
     throw new Error(payload?.message || "Twilio request failed.")
@@ -53,9 +62,12 @@ async function twilioRequest(path: string, form: URLSearchParams) {
 }
 
 export async function sendFollowUpSms(input: { to: string; body: string; statusCallback: string; scheduleAt?: Date }) {
-  const { messagingServiceSid, from, dedicatedFrom } = credentials()
+  const { messagingServiceSid, from } = credentials()
   if (!messagingServiceSid && !from) throw new Error("A Twilio sender is not configured.")
-  const useMessagingService = Boolean(messagingServiceSid && !dedicatedFrom)
+  if (input.scheduleAt && !messagingServiceSid) {
+    throw new SideEffectPreflightError("scheduled_messaging_service_missing")
+  }
+  const useMessagingService = Boolean(messagingServiceSid)
   const form = new URLSearchParams({
     To: input.to,
     Body: input.body,

@@ -9,6 +9,7 @@ import {
   getOrCreateFollowUpSession,
   publicBaseUrl,
   publicSession,
+  projectSideEffectRecord,
   saveFollowUpSession,
   validateNewSession,
 } from "@/lib/follow-up-demo"
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
       session.events.push(event("call.started", "Demo call started", "Reject the call or let it ring out to trigger the text-back", "call", "running"))
       session.events.push(event("sms.waiting_for_missed_call", "Text-back waiting", "SMS sends after Twilio reports the call was missed", "sms", "waiting"))
     } else if (callOutcome.kind === "already_completed" || callOutcome.kind === "already_dispatching") {
-      // Ignored
+      projectSideEffectRecord(session, "initial-call", callOutcome.record)
     } else if (callOutcome.kind === "persistence_unavailable" || callOutcome.kind === "preflight_failed" || callOutcome.kind === "provider_rejected") {
       session.initialCallState = "failed"
     } else {
@@ -115,7 +116,7 @@ export async function POST(request: Request) {
       session.initialEmailState = "sent"
       session.events.push(event("email.sent", "Demo email sent", session.email, "email", "completed"))
     } else if (emailOutcome.kind === "already_completed" || emailOutcome.kind === "already_dispatching") {
-      // Ignored
+      projectSideEffectRecord(session, "initial-email", emailOutcome.record)
     } else if (emailOutcome.kind === "persistence_unavailable" || emailOutcome.kind === "preflight_failed" || emailOutcome.kind === "provider_rejected") {
       session.initialEmailState = "failed"
     } else {
@@ -149,7 +150,7 @@ export async function POST(request: Request) {
     if (leadOutcome.kind === "executed") {
       session.leadNotificationState = "sent"
     } else if (leadOutcome.kind === "already_completed" || leadOutcome.kind === "already_dispatching") {
-      // Ignored
+      projectSideEffectRecord(session, "lead-notification", leadOutcome.record)
     } else if (leadOutcome.kind === "persistence_unavailable" || leadOutcome.kind === "preflight_failed" || leadOutcome.kind === "provider_rejected") {
       session.leadNotificationState = "failed"
     } else {

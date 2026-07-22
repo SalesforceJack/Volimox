@@ -1,6 +1,6 @@
 import { sendLeadNotification, validateSmtpConfig } from "@/lib/mail"
 import { event, message, publicBaseUrl, saveFollowUpSession, type FollowUpDemoSession } from "@/lib/follow-up-demo"
-import { cancelScheduledSms, sendFollowUpSms, validateTwilioConfig } from "@/lib/twilio-demo"
+import { cancelScheduledSms, sendFollowUpSms, validateTwilioConfig, validateTwilioSchedulingConfig } from "@/lib/twilio-demo"
 import { createSideEffectStore, executeSideEffect, deriveSideEffectId, ProviderRejectedError, SideEffectPreflightError } from "@/lib/side-effect-machine"
 import { demoDb, getDemoTenantId, getSideEffectsCollection, getInboundSmsClaimsCollection } from "@/lib/firebase-admin"
 
@@ -57,7 +57,7 @@ export async function triggerMissedCallRecovery(session: FollowUpDemoSession, re
           {
             sessionId: session.id,
             preflight: () => {
-              const config = validateTwilioConfig()
+              const config = validateTwilioSchedulingConfig()
               if (!config.configured) throw new SideEffectPreflightError(config.reasonCode || "not_configured")
             },
           },
