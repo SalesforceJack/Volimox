@@ -1,9 +1,5 @@
 import nodemailer from "nodemailer"
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export interface LeadFormData {
   fullName: string
   email: string
@@ -11,11 +7,11 @@ export interface LeadFormData {
   industry: string
   projectScope: string
   estimatedVolume: string
+  businessPhone?: string
+  currentPhoneProvider?: string
+  bookingSystem?: string
+  afterHours?: string
 }
-
-// ---------------------------------------------------------------------------
-// Config Validation
-// ---------------------------------------------------------------------------
 
 export function validateSmtpConfig(): { configured: boolean } {
   const user = process.env.EMAIL_USER || process.env.SMTP_USER
@@ -29,17 +25,10 @@ export function isDefinitiveSmtpRejection(error: unknown): boolean {
   return Number.isInteger(responseCode) && responseCode >= 500 && responseCode < 600
 }
 
-// ---------------------------------------------------------------------------
-// Transport
-// ---------------------------------------------------------------------------
-
 function createTransport() {
   const user = process.env.EMAIL_USER || process.env.SMTP_USER
   const pass = process.env.EMAIL_PASS || process.env.SMTP_PASS
-
-  if (!user || !pass) {
-    return null
-  }
+  if (!user || !pass) return null
 
   return nodemailer.createTransport({
     host: process.env.EMAIL_SMTP_HOST || "smtp.gmail.com",
@@ -48,10 +37,6 @@ function createTransport() {
     auth: { user, pass },
   })
 }
-
-// ---------------------------------------------------------------------------
-// Send lead notification
-// ---------------------------------------------------------------------------
 
 export async function sendLeadNotification(
   data: LeadFormData
@@ -64,7 +49,6 @@ export async function sendLeadNotification(
   }
 
   const subject = `[Volimox] New operation brief: ${data.companyName} (${data.industry})`
-
   const safe = {
     fullName: esc(data.fullName),
     email: esc(data.email),
@@ -72,6 +56,10 @@ export async function sendLeadNotification(
     industry: esc(data.industry),
     projectScope: esc(data.projectScope),
     estimatedVolume: esc(data.estimatedVolume),
+    businessPhone: esc(data.businessPhone || "Not provided"),
+    currentPhoneProvider: esc(data.currentPhoneProvider || "Not provided"),
+    bookingSystem: esc(data.bookingSystem || "Not provided"),
+    afterHours: esc(data.afterHours || "Not provided"),
   }
 
   const html = [
@@ -90,6 +78,10 @@ export async function sendLeadNotification(
     "<tr><td>Work Email</td><td>", safe.email, "</td></tr>",
     "<tr><td>Company</td><td>", safe.companyName, "</td></tr>",
     "<tr><td>Industry</td><td>", safe.industry, "</td></tr>",
+    "<tr><td>Business Phone</td><td>", safe.businessPhone, "</td></tr>",
+    "<tr><td>Phone Provider</td><td>", safe.currentPhoneProvider, "</td></tr>",
+    "<tr><td>Booking System</td><td>", safe.bookingSystem, "</td></tr>",
+    "<tr><td>Missed Calls</td><td>", safe.afterHours, "</td></tr>",
     "<tr><td>Project Scope</td><td>", safe.projectScope, "</td></tr>",
     "<tr><td>Est. Monthly Volume</td><td>", safe.estimatedVolume, "</td></tr>",
     "</table><div class='footer'>Volimox | Conversation to completion</div>",
@@ -113,10 +105,6 @@ export async function sendLeadNotification(
     throw err
   }
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function esc(text: string): string {
   return text
