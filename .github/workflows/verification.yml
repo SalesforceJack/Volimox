@@ -1,0 +1,52 @@
+name: Volimox verification
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_ENV: test
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Java for the Firebase emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run Firestore emulator tests
+        run: npx --yes firebase-tools@13.35.1 emulators:exec --only firestore --project volimox-platform "npm run test:firestore"
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Check patch whitespace
+        run: git diff --check HEAD^ HEAD

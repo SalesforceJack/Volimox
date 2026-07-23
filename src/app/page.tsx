@@ -101,11 +101,11 @@ export default function HomePage() {
               Volimox designs AI systems that quote, collect, schedule, dispatch, and update your business tools.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <a href="/limo" className="button-primary" data-cta="hero-limo-pilot">
-                See the limo pilot
+              <a href="#contact" className="button-primary" data-cta="hero-operation-map">
+                Map my operation
                 <ArrowRight size={16} weight="bold" />
               </a>
-              <a href="#live-demo" className="button-secondary" data-cta="hero-live-agent">Try the live agent</a>
+              <a href="#system" className="button-secondary" data-cta="hero-see-system">See the system</a>
             </div>
             <div className="mt-10 grid max-w-lg grid-cols-3 border-y border-line py-4">
               <HeroFact value="5" label="run stages" />

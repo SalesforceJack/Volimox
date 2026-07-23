@@ -92,11 +92,16 @@ export async function buildGlobalDemoQuote(input: { pickup: string; destination:
   }
 }
 
-export function createDemoToken(quote: Pick<DemoQuote, "distanceMiles" | "durationMinutes" | "estimatedValueUsd"> & { reservationId?: string }) {
+export function createDemoToken(quote: Pick<DemoQuote, "distanceMiles" | "durationMinutes" | "estimatedValueUsd"> & {
+  reservationId?: string
+  tokenId?: string
+  expiresAt?: number
+}) {
+  const { tokenId, expiresAt, ...tokenQuote } = quote
   const payload: DemoTokenPayload = {
-    id: crypto.randomUUID(),
-    exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
-    ...quote,
+    id: tokenId || crypto.randomUUID(),
+    exp: expiresAt ?? Date.now() + 7 * 24 * 60 * 60 * 1000,
+    ...tokenQuote,
   }
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url")
   const signature = crypto.createHmac("sha256", getLinkSecret()).update(encoded).digest("base64url")
@@ -114,7 +119,24 @@ export function readQuoteFingerprint(value: string) {
   if (!encoded || !signature) return null
   const expected = crypto.createHmac("sha256", getLinkSecret()).update(encoded).digest("base64url")
   if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null
-  try { return JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as Record<string, unknown> } catch { return null }
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as Record<string, unknown>
+    // Validate fingerprint age — reject fingerprints older than 2 hours
+    const MAX_FINGERPRINT_AGE_MS = 2 * 60 * 60 * 1000
+    if (typeof parsed.issuedAt === "string") {
+      const issuedAt = new Date(parsed.issuedAt).getTime()
+      if (!Number.isFinite(issuedAt) || Date.now() - issuedAt > MAX_FINGERPRINT_AGE_MS) return null
+    }
+    // Validate passenger count bounds
+    if ("passengers" in parsed) {
+      const p = Number(parsed.passengers)
+      if (!Number.isFinite(p) || p < 1 || p > 80) return null
+    }
+    // Validate route field lengths
+    if (typeof parsed.pickup === "string" && parsed.pickup.length > 240) return null
+    if (typeof parsed.destination === "string" && parsed.destination.length > 240) return null
+    return parsed
+  } catch { return null }
 }
 
 export function readDemoToken(token: string): DemoTokenPayload | null {
@@ -142,14 +164,26 @@ export function normalizeDemoPhone(value: unknown) {
   return ""
 }
 
-export async function sendDemoSms(phone: string, url: string) {
+export function validateDemoSmsConfig(): { configured: boolean; reasonCode?: string } {
   const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim()
   const authToken = process.env.TWILIO_AUTH_TOKEN?.trim()
   const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID?.trim()
-  const from = process.env.TWILIO_PHONE_NUMBER?.trim()
+  const dedicatedFrom = process.env.VOLIMOX_DEMO_PHONE_NUMBER?.trim() || process.env.TWILIO_DEMO_PHONE_NUMBER?.trim()
+  const from = dedicatedFrom || process.env.TWILIO_PHONE_NUMBER?.trim()
+  if (!accountSid || !authToken) return { configured: false, reasonCode: "credentials_missing" }
+  if (!messagingServiceSid && !from) return { configured: false, reasonCode: "sender_missing" }
+  return { configured: true }
+}
+
+export async function sendDemoSms(phone: string, url: string): Promise<{ sent: true; messageSid: string } | { sent: false; reasonCode: string }> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim()
+  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim()
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID?.trim()
+  const dedicatedFrom = process.env.VOLIMOX_DEMO_PHONE_NUMBER?.trim() || process.env.TWILIO_DEMO_PHONE_NUMBER?.trim()
+  const from = dedicatedFrom || process.env.TWILIO_PHONE_NUMBER?.trim()
 
   if (!accountSid || !authToken || (!messagingServiceSid && !from)) {
-    return { sent: false, reason: "SMS is not configured." }
+    return { sent: false, reasonCode: "not_configured" }
   }
 
   const form = new URLSearchParams({
@@ -164,10 +198,17 @@ export async function sendDemoSms(phone: string, url: string) {
     body: form.toString(),
   })
 
-  if (!response.ok) {
-    const body = await response.json().catch(() => null)
-    return { sent: false, reason: body?.message || "SMS could not be sent." }
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok && response.status >= 400 && response.status < 500) {
+    return { sent: false, reasonCode: "provider_error" }
   }
 
-  return { sent: true }
+  if (!response.ok) throw new Error("Twilio SMS request failed")
+
+  if (!payload?.sid) {
+    throw new Error("Twilio SMS response missing SID")
+  }
+
+  return { sent: true, messageSid: payload.sid }
 }
