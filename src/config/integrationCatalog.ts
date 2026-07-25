@@ -66,7 +66,7 @@ export const integrationCategories = [
   "Limo and dispatch",
 ] as const
 
-export const integrationCatalog: IntegrationDefinition[] = [
+export const integrationCatalog = [
   {
     slug: "gmail",
     name: "Gmail",
@@ -802,7 +802,9 @@ export const integrationCatalog: IntegrationDefinition[] = [
     setup: ["Confirm Moovs API access", "Select account and locations", "Map vehicle and trip statuses"],
     related: ["Twilio", "Google Calendar", "Stripe"],
   },
-]
+] satisfies IntegrationDefinition[]
+
+export type IntegrationSlug = (typeof integrationCatalog)[number]["slug"]
 
 export const integrationBySlug = new Map(integrationCatalog.map((integration) => [integration.slug, integration]))
 

@@ -15,6 +15,7 @@ import { AppLogo } from "@/components/AppLogo"
 import { SiteHeader } from "@/components/SiteHeader"
 import { VolimoxFooter } from "@/components/VolimoxFooter"
 import { getIntegration, integrationCatalog } from "@/config/integrationCatalog"
+import { integrationWorkflowScenarios } from "@/config/integrationWorkflowScenarios"
 
 type AppDetailPageProps = {
   params: Promise<{ slug: string }>
@@ -46,6 +47,7 @@ export default async function AppDetailPage({ params }: AppDetailPageProps) {
     .slice(0, 3)
 
   const primaryCta = app.status === "in-use" ? "Request this connection" : "Request a pilot"
+  const workflowScenarios = integrationWorkflowScenarios[app.slug]
 
   return (
     <main className="min-h-screen overflow-clip bg-canvas text-ink">
@@ -112,17 +114,49 @@ export default async function AppDetailPage({ params }: AppDetailPageProps) {
               <div className="flex items-start gap-4">
                 <span className="pt-1 font-mono text-[10px] text-ink-faint">01</span>
                 <div>
-                  <h2 className="text-3xl font-semibold tracking-[-0.05em] sm:text-4xl">Workflows built around the handoff.</h2>
-                  <p className="mt-4 max-w-2xl text-sm leading-7 text-ink-muted">These are the first useful jobs for {app.name}. We will only enable a workflow after its fields, permissions, and failure path are tested.</p>
+                  <h2 className="text-3xl font-semibold tracking-[-0.05em] sm:text-4xl">Special workflows for {app.name}.</h2>
+                  <p className="mt-4 max-w-2xl text-sm leading-7 text-ink-muted">Each scenario shows the trigger, the Volimox handoff, and the human checkpoint. These are concrete workflow blueprints, not a claim that every connection is live today.</p>
                 </div>
               </div>
 
-              <div className="mt-8 grid gap-px bg-line-strong md:grid-cols-2">
-                {app.workflows.map((workflow, index) => (
-                  <article key={workflow.title} className="bg-canvas-muted p-6 sm:p-8">
-                    <span className="font-mono text-[10px] text-ink-faint">{String(index + 1).padStart(2, "0")}</span>
-                    <h3 className="mt-10 text-xl font-semibold tracking-[-0.04em]">{workflow.title}</h3>
-                    <p className="mt-3 text-sm leading-6 text-ink-muted">{workflow.description}</p>
+              <div className="mt-8 space-y-px bg-line-strong">
+                {workflowScenarios.map((workflow, index) => (
+                  <article key={workflow.title} className="bg-canvas-muted p-6 sm:p-8 lg:p-10">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-faint">Use case {String(index + 1).padStart(2, "0")}</span>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-faint">{app.name} × Volimox</span>
+                    </div>
+                    <h3 className="mt-8 max-w-3xl text-2xl font-semibold tracking-[-0.045em] sm:text-3xl">{workflow.title}</h3>
+                    <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-muted">{workflow.summary}</p>
+
+                    <div className="mt-8 grid gap-6 border-t border-line pt-6 sm:grid-cols-2">
+                      <div>
+                        <p className="section-kicker">Starts when</p>
+                        <p className="mt-3 text-sm leading-6 text-ink">{workflow.trigger}</p>
+                      </div>
+                      <div>
+                        <p className="section-kicker">Result</p>
+                        <p className="mt-3 text-sm leading-6 text-ink">{workflow.outcome}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-8 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+                      <div>
+                        <p className="section-kicker">Volimox workflow</p>
+                        <ol className="mt-4 space-y-3">
+                          {workflow.steps.map((step, stepIndex) => (
+                            <li key={step} className="flex gap-4 border-t border-line pt-3 text-sm leading-6 text-ink-muted">
+                              <span className="font-mono text-[10px] text-ink-faint">{String(stepIndex + 1).padStart(2, "0")}</span>
+                              <span>{step}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                      <div className="border-l-2 border-signal pl-5 sm:pl-6">
+                        <p className="section-kicker">Human checkpoint</p>
+                        <p className="mt-3 text-sm leading-6 text-ink-muted">{workflow.checkpoint}</p>
+                      </div>
+                    </div>
                   </article>
                 ))}
               </div>
