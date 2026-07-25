@@ -246,6 +246,20 @@ textarea:focus-visible {
   letter-spacing: -0.025em;
 }
 
+.live-transcript-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.2) transparent;
+}
+
+.live-transcript-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.live-transcript-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.2);
+}
+
 @keyframes integration-marquee {
   to {
     transform: translateX(-50%);

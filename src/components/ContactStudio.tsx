@@ -1,7 +1,8 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import { FormEvent, useEffect, useRef, useState } from "react"
 import { Check, PaperPlaneTilt, WarningCircle } from "@phosphor-icons/react"
+import { trackDemoEvent } from "@/lib/client-analytics"
 
 type SubmitState = "idle" | "sending" | "success" | "error"
 
@@ -12,10 +13,30 @@ function getBuildProfile(volume: number) {
 }
 
 export function ContactStudio() {
+  const formRef = useRef<HTMLFormElement | null>(null)
   const [volume, setVolume] = useState(5000)
   const [state, setState] = useState<SubmitState>("idle")
   const [message, setMessage] = useState("")
+  const [demoContext, setDemoContext] = useState("")
   const profile = getBuildProfile(volume)
+
+  useEffect(() => {
+    const applyDemoContext = (event: Event) => {
+      const detail = (event as CustomEvent<{ agentName?: string; completedOperations?: string[] }>).detail
+      if (!detail?.agentName || !formRef.current) return
+      const industry = formRef.current.elements.namedItem("industry") as HTMLSelectElement | null
+      const projectScope = formRef.current.elements.namedItem("projectScope") as HTMLTextAreaElement | null
+      const healthcare = /Dental|Orthodontics|Med Spa|Massage/i.test(detail.agentName)
+      if (industry) industry.value = /Limo/i.test(detail.agentName) ? "Transportation and logistics" : healthcare ? "Healthcare administration" : "Other"
+      if (projectScope) {
+        const operations = detail.completedOperations?.length ? ` Completed operations: ${detail.completedOperations.join(", ")}.` : ""
+        projectScope.value = `I tested the ${detail.agentName} live agent and want to explore this workflow for my business.${operations}`
+      }
+      setDemoContext(`${detail.agentName} demo context added`)
+    }
+    window.addEventListener("volimox:demo-complete", applyDemoContext)
+    return () => window.removeEventListener("volimox:demo-complete", applyDemoContext)
+  }, [])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -36,6 +57,7 @@ export function ContactStudio() {
       if (!response.ok || !result.success) throw new Error(result.error || "Your request could not be sent.")
       setState("success")
       setMessage(result.message || "Your operation map is in the queue.")
+      trackDemoEvent("operation_brief_submitted")
       formElement.reset()
     } catch (error) {
       setState("error")
@@ -80,7 +102,8 @@ export function ContactStudio() {
         </div>
       </div>
 
-      <form id="operation-form" onSubmit={submit} className="grid gap-5 bg-[#171815] p-6 sm:grid-cols-2 sm:p-10">
+      <form ref={formRef} id="operation-form" onSubmit={submit} className="grid gap-5 bg-[#171815] p-6 sm:grid-cols-2 sm:p-10">
+        {demoContext && <div className="flex items-center gap-3 border border-signal/35 bg-signal/10 p-4 text-sm text-white sm:col-span-2"><Check size={17} weight="bold" className="text-signal" />{demoContext}</div>}
         <Field label="Your name" name="fullName" autoComplete="name" required />
         <Field label="Work email" name="email" type="email" autoComplete="email" required />
         <Field label="Company" name="companyName" autoComplete="organization" required />

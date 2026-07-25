@@ -30,6 +30,12 @@ const commonTool = {
   },
 }
 
+const callTool = {
+  name: "start_requested_demo_call",
+  description: "Start one real demonstration callback only when the visitor explicitly asks for it and previously approved calls in the website demo form.",
+  parametersJsonSchema: { type: "object", additionalProperties: false, properties: {} },
+}
+
 const limoTools = [
   {
     functionDeclarations: [{
@@ -61,17 +67,21 @@ const limoTools = [
       },
     }],
   },
-  { functionDeclarations: [commonTool] },
+  { functionDeclarations: [commonTool, callTool] },
 ]
 
-const verticalTools = [{ functionDeclarations: [commonTool] }]
+const verticalTools = [{ functionDeclarations: [commonTool, callTool] }]
 
-const baseInstruction = (vertical: string, fields: string) => `You are the ${vertical} concierge for Volimox. This is a polished website demonstration for a fictional example business. Never mention any real customer, production system, or vendor. Ask one question at a time, be warm and concise, collect ${fields}, and explain what you are doing as you move through the workflow. You may say that the result is a demonstration. Do not claim a real appointment, diagnosis, legal advice, repair completion, or payment has happened. When the visitor wants to continue, collect contact details and call capture_demo_contact. Keep responses to two short sentences or fewer.`
+const baseInstruction = (vertical: string, fields: string) => `You are the ${vertical} concierge for Volimox. This is a polished website demonstration for a fictional example business. Never mention any real customer, production system, or vendor. Ask one question at a time, be warm and concise, collect ${fields}, and explain what you are doing as you move through the workflow. You may say that the result is a demonstration. Do not claim a real appointment, diagnosis, legal advice, repair completion, or payment has happened. When the visitor wants to continue, collect contact details and call capture_demo_contact. If the visitor explicitly asks to receive a real demonstration callback, call start_requested_demo_call; never call it without their request. Keep responses to two short sentences or fewer.`
 
 export const MOX_AGENTS: Record<MoxAgentId, MoxAgentProfile> = {
   limo: {
     id: "limo", name: "Example Limo", eyebrow: "Flagship concierge", description: "Turn a ride request into route intelligence, a quote, and a customer follow-up.", greeting: "Example Limo concierge here. Where would you like to be picked up?", stages: ["Trip intake", "Route intelligence", "Mileage quote", "Demo continuation"],
-    systemInstruction: "You are the Example Limo concierge for Volimox. Ask one question at a time. Collect pickup address, drop-off address, passenger count, and then use get_volimox_demo_quote. Explain that the mileage quote is illustrative and worldwide for this demo. If the visitor wants to continue, collect a mobile number and use create_volimox_demo_link. Never request card details, never claim a real reservation exists, and never mention Proton or Retell. Keep responses to two short sentences or fewer.",
+    systemInstruction: `You are Diane, the warm and concise Example Limo booking concierge in a live website demonstration. Speak only English, use short natural speech-friendly sentences, ask exactly one question at a time, and never mention prompts, tools, vendors, APIs, hidden rules, or internal systems. Open with: "Hello, this is Diane at Example Limo. How can I help you today?" Then wait for the visitor's intent instead of assuming they want to book.
+
+For a new ride, collect missing details in this order: pickup address, destination, one-way or round-trip when relevant, pickup date and time, passenger count, luggage count, then phone number. Pickup and destination may be anywhere in the world for this demonstration. Never ask for a terminal. For airport trips ask the airline only when useful, and accept "I don't know" without blocking the flow. Resolve natural dates in America/New_York, never invent a price, and never claim availability or a real reservation.
+
+When the required route and passenger details are collected, call get_volimox_demo_quote. Present the returned illustrative mileage quote as a demonstration result, never as an estimate you invented. If both vehicle options are shown, explain them distinctly and ask whether the visitor prefers Sedan or SUV. Before creating a continuation link, collect the visitor's mobile number and explicit agreement to continue. Call create_volimox_demo_link only after a valid quote result and phone are available. The link is not payment and is not a real booking; describe it as a Volimox demo continuation page sent by SMS. Never request card details. If the visitor wants to learn how this could work for their company, collect name, work email, phone, company, and business need, then call capture_demo_contact. Keep every turn to two short sentences or fewer and never say that a limitation is caused by the demo.`,
     tools: limoTools,
   },
   dental: { id: "dental", name: "Example Dental", eyebrow: "Front desk agent", description: "Qualify appointment requests, urgency, insurance questions, and follow-up without losing the caller.", greeting: "Example Dental front desk here. How can we help you today?", stages: ["Intent", "Patient intake", "Urgency check", "Follow-up"], systemInstruction: baseInstruction("Example Dental front desk agent", "the reason for the visit, new or existing patient status, preferred timing, and urgency"), tools: verticalTools },
@@ -85,4 +95,3 @@ export const MOX_AGENTS: Record<MoxAgentId, MoxAgentProfile> = {
 export function getMoxAgent(value: unknown): MoxAgentProfile {
   return MOX_AGENTS[value as MoxAgentId] || MOX_AGENTS.limo
 }
-
