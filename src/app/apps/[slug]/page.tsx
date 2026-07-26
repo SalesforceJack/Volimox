@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from "@phosphor-icons/react/dist/ssr"
 import { AppLogo } from "@/components/AppLogo"
+import { IntegrationCodeExample } from "@/components/IntegrationCodeExample"
 import { SiteHeader } from "@/components/SiteHeader"
 import { VolimoxFooter } from "@/components/VolimoxFooter"
 import { getIntegration, integrationCatalog } from "@/config/integrationCatalog"
@@ -32,7 +33,7 @@ export async function generateMetadata({ params }: AppDetailPageProps): Promise<
 
   return {
     title: `${app.name} connection`,
-    description: `${app.name} workflows, permissions, and connection setup for Volimox.`,
+    description: `${app.name} workflows, permissions, connection setup, and TypeScript examples for Volimox.`,
   }
 }
 
@@ -99,6 +100,7 @@ export default async function AppDetailPage({ params }: AppDetailPageProps) {
               {[
                 ["workflows", "Workflows"],
                 ["capabilities", "Triggers and actions"],
+                ["code", "Connection code"],
                 ["connection", "Connection setup"],
               ].map(([id, label], index) => (
                 <a key={id} href={`#${id}`} className="flex items-center gap-3 border-b border-line py-3 text-xs text-ink-muted transition-colors hover:text-ink">
@@ -177,9 +179,11 @@ export default async function AppDetailPage({ params }: AppDetailPageProps) {
               </div>
             </section>
 
+            <IntegrationCodeExample app={app} />
+
             <section id="connection" className="mt-16 scroll-mt-28 border-t border-line pt-8">
               <div className="flex items-start gap-4">
-                <span className="pt-1 font-mono text-[10px] text-ink-faint">03</span>
+                <span className="pt-1 font-mono text-[10px] text-ink-faint">04</span>
                 <div>
                   <h2 className="text-3xl font-semibold tracking-[-0.05em] sm:text-4xl">Connection setup.</h2>
                   <p className="mt-4 max-w-2xl text-sm leading-7 text-ink-muted">The setup path is specific to the provider. We will never ask you to paste credentials into a public page.</p>
