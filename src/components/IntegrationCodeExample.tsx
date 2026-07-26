@@ -3,7 +3,7 @@ import type { IntegrationDefinition } from "@/config/integrationCatalog"
 import { buildZapierSdkSnippet, integrationCodeExamples } from "@/config/integrationCodeExamples"
 
 export function IntegrationCodeExample({ app }: { app: IntegrationDefinition }) {
-  const config = integrationCodeExamples[app.slug]
+  const config = integrationCodeExamples[app.slug as keyof typeof integrationCodeExamples]
   const snippet = buildZapierSdkSnippet(app.name, config)
 
   return (
