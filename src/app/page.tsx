@@ -16,13 +16,14 @@ import {
   UserSwitch,
 } from "@phosphor-icons/react/dist/ssr"
 import { ArchitectureExplorer } from "@/components/ArchitectureExplorer"
-import { BrandMark } from "@/components/BrandMark"
 import { ContactStudio } from "@/components/ContactStudio"
 import { IntegrationMarquee } from "@/components/IntegrationMarquee"
 import { MoxAgentGallery } from "@/components/MoxAgentGallery"
+import { MoxFollowUpDemo } from "@/components/MoxFollowUpDemo"
 import { OperationsDemo } from "@/components/OperationsDemo"
 import { ProtonLiveBooking } from "@/components/ProtonLiveBooking"
 import { SiteHeader } from "@/components/SiteHeader"
+import { VolimoxFooter } from "@/components/VolimoxFooter"
 import { WorkflowStory } from "@/components/WorkflowStory"
 
 export const metadata: Metadata = {
@@ -126,6 +127,8 @@ export default function HomePage() {
       <IntegrationMarquee />
 
       <ProtonLiveBooking />
+
+      <MoxFollowUpDemo />
 
       <MoxAgentGallery />
 
@@ -255,18 +258,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="border-t border-line bg-canvas py-12">
-        <div className="mx-auto flex max-w-[1440px] flex-col gap-10 px-5 sm:px-8 lg:px-12">
-          <div className="flex flex-col items-start justify-between gap-8 sm:flex-row sm:items-center">
-            <BrandMark />
-            <p className="max-w-md text-sm leading-6 text-ink-muted">Operational AI systems that move from conversation to completed work.</p>
-          </div>
-          <div className="flex flex-col justify-between gap-4 border-t border-line pt-6 font-mono text-[9px] uppercase tracking-[0.12em] text-ink-faint sm:flex-row">
-            <span>© {new Date().getFullYear()} Volimox</span>
-            <span>Systems designed for real operations</span>
-          </div>
-        </div>
-      </footer>
+      <VolimoxFooter />
     </main>
   )
 }
