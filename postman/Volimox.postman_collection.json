@@ -1,0 +1,44 @@
+{
+  "info": {
+    "name": "Volimox API and integration contracts",
+    "description": "Repository-owned smoke and negative contracts for Volimox's demo, readiness, and Proton bridge boundaries. Values are placeholders; never commit real secrets.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/health" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('liveness is available', () => pm.expect(pm.response.code).to.eql(200));", "pm.test('request id is returned', () => pm.expect(pm.response.headers.has('x-request-id')).to.eql(true));"] } }]
+    },
+    {
+      "name": "Readiness",
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/ready" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('readiness reports a deterministic state', () => pm.expect([200, 503]).to.include(pm.response.code));"] } }]
+    },
+    {
+      "name": "Global demo quote - example",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"pickup_address\": \"1 Main Street, New York, NY\",\n  \"destination_address\": \"JFK Airport, Queens, NY\",\n  \"passenger_count\": 2\n}" },
+        "url": "{{baseUrl}}/api/demo/quote"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('demo quote returns a controlled API response', () => pm.expect([200, 400, 429, 502]).to.include(pm.response.code));"] } }]
+    },
+    {
+      "name": "Demo lead - validation negative",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{}" }, "url": "{{baseUrl}}/api/demo/lead" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('invalid lead payload is rejected', () => pm.expect([400, 429]).to.include(pm.response.code));"] } }]
+    },
+    {
+      "name": "Proton quote bridge - example",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"pickup_address\": \"1 Main Street, New York, NY\",\n  \"destination_address\": \"JFK Airport\",\n  \"departure_time_iso\": \"2030-01-01T12:00:00Z\",\n  \"passenger_count\": 1,\n  \"luggage_count\": 0\n}" },
+        "url": "{{baseUrl}}/api/proton/quote"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Proton bridge returns a controlled API response', () => pm.expect([200, 400, 429, 502]).to.include(pm.response.code));"] } }]
+    }
+  ]
+}

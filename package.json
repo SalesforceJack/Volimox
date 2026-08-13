@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p 3002",
     "lint": "tsc --noEmit",
-    "test": "npx tsx --tsconfig tsconfig.json src/tests/side-effect-machine.test.ts && npx tsx --tsconfig tsconfig.json src/tests/final-hardening.test.mjs",
+    "test": "npx tsx --tsconfig tsconfig.json src/tests/side-effect-machine.test.ts && npx tsx --tsconfig tsconfig.json src/tests/final-hardening.test.mjs && npx tsx --tsconfig tsconfig.json src/tests/observability.test.ts && npx tsx --tsconfig tsconfig.json src/tests/proton-request-id.test.ts && npx tsx --tsconfig tsconfig.json src/tests/ready-route.test.ts && node scripts/postman-validator.test.mjs",
+    "validate:postman": "node ./scripts/validate-postman.mjs",
     "test:firestore": "npx tsx --tsconfig tsconfig.json src/tests/firestore-side-effect.test.ts",
     "retell:sync-demo": "node scripts/sync-retell-demo-agent.mjs"
   },

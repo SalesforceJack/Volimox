@@ -14,6 +14,10 @@ type ProtonConfig = {
   secret: string
 }
 
+type ProtonRequestOptions = {
+  requestId?: string
+}
+
 function getProtonConfig(): ProtonConfig {
   const baseUrl = process.env.PROTON_API_BASE_URL?.trim().replace(/\/$/, "")
   const secret = process.env.PROTON_API_KEY?.trim()
@@ -25,7 +29,7 @@ function getProtonConfig(): ProtonConfig {
   return { baseUrl, secret }
 }
 
-export async function callProton<T>(path: string, payload: Record<string, unknown>): Promise<T> {
+export async function callProton<T>(path: string, payload: Record<string, unknown>, options: ProtonRequestOptions = {}): Promise<T> {
   const { baseUrl, secret } = getProtonConfig()
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 20_000)
@@ -37,6 +41,7 @@ export async function callProton<T>(path: string, payload: Record<string, unknow
         Authorization: `Bearer ${secret}`,
         "Content-Type": "application/json",
         "x-proton-integration-secret": secret,
+        ...(options.requestId ? { "x-request-id": options.requestId } : {}),
       },
       body: JSON.stringify(payload),
       cache: "no-store",
