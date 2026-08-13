@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getClientIp, withinDemoRateLimit } from "@/lib/demo-rate-limit"
 import { callProton, normalizeQuoteRequest } from "@/lib/proton"
+import { requestIdFor, withRequestId } from "@/lib/observability"
 
 export const runtime = "nodejs"
 
@@ -9,8 +10,9 @@ function getString(body: Record<string, unknown>, name: string, maxLength = 160)
 }
 
 export async function POST(request: Request) {
+  const requestId = requestIdFor(request)
   if (!withinDemoRateLimit(`payment:${getClientIp(request)}`, 3, 60 * 60 * 1000)) {
-    return NextResponse.json({ ok: false, error: "Payment-link request limit reached. Please try again later." }, { status: 429 })
+    return withRequestId(NextResponse.json({ ok: false, error: "Payment-link request limit reached. Please try again later." }, { status: 429 }), requestId)
   }
 
   try {
@@ -31,9 +33,9 @@ export async function POST(request: Request) {
       quote_issued_at: quoteIssuedAt,
       user_confirmed_price: true,
       send_sms: true,
-    })
+    }, { requestId })
 
-    return NextResponse.json({
+    return withRequestId(NextResponse.json({
       ok: result.ok === true,
       code: result.code,
       error: result.error,
@@ -42,9 +44,9 @@ export async function POST(request: Request) {
       reservationId: result.reservationId,
       amountUsd: result.amountUsd,
       requiresAdminApproval: result.requiresAdminApproval === true,
-    })
+    }), requestId)
   } catch (error) {
     console.error("[volimox/proton/payment]", error)
-    return NextResponse.json({ ok: false, error: "The payment link could not be created." }, { status: 502 })
+    return withRequestId(NextResponse.json({ ok: false, error: "The payment link could not be created." }, { status: 502 }), requestId)
   }
 }

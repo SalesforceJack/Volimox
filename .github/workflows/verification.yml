@@ -39,6 +39,9 @@ jobs:
       - name: Typecheck
         run: npm run lint
 
+      - name: Validate API contracts
+        run: npm run validate:postman
+
       - name: Run unit tests
         run: npm test
 
