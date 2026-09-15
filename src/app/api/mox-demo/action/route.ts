@@ -13,6 +13,39 @@ export const runtime = "nodejs"
 
 const text = (value: unknown, max = 500) => typeof value === "string" ? value.replace(/[\r\n]+/g, " ").trim().slice(0, max) : ""
 
+function looksLikeLocation(value: string) {
+  const normalized = value.trim()
+  if (!normalized) return false
+  if (/^[A-Z]{3}$/i.test(normalized) || /\bairport\b/i.test(normalized)) return true
+  const words = normalized.split(/\s+/).filter(Boolean)
+  return words.length >= 3 || (words.length >= 2 && (/[\d,]/.test(normalized) || /\b(street|st|avenue|ave|road|rd|drive|dr|court|ct|boulevard|blvd|parkway|pkwy|lane|ln|way|place|pl)\b/i.test(normalized)))
+}
+
+function validateLimoQuoteArgs(args: Record<string, unknown>) {
+  const pickup = text(args.pickup_address, 240)
+  const destination = text(args.destination_address, 240)
+  const departureTime = text(args.departure_time_iso, 80)
+  const passengerCount = Number(args.passenger_count)
+  const luggageCount = Number(args.luggage_count)
+  const phone = normalizeDemoPhone(args.phone)
+  const serviceType = text(args.service_type, 40).toLowerCase().replace(/[\s-]+/g, "_")
+  const tripType = text(args.trip_type, 40).toLowerCase().replace(/[\s-]+/g, "_")
+
+  if (!looksLikeLocation(pickup)) return { error: "I still need the full pickup address, including the city and state." }
+  if (!looksLikeLocation(destination)) return { error: "I still need the full drop-off address, including the city and state." }
+  const departureMs = Date.parse(departureTime)
+  if (!departureTime || !Number.isFinite(departureMs)) return { error: "I still need a specific future pickup date and time." }
+  if (departureMs <= Date.now()) return { error: "That pickup time is no longer in the future. Please provide a future date and time." }
+  if (!Number.isInteger(passengerCount) || passengerCount < 1 || passengerCount > 6) return { error: "Example Limo can quote 1 to 6 passengers per vehicle. Please provide a clear passenger count." }
+  if (!Number.isInteger(luggageCount) || luggageCount < 0 || luggageCount > 14) return { error: "Please provide a clear luggage count from 0 to 14." }
+  if (!/^\+1\d{10}$/.test(phone)) return { error: "Before I can give a price estimate, I need a valid 10-digit US phone number." }
+  if (!["point_to_point", "airport_departure", "airport_arrival", "hourly"].includes(serviceType)) return { error: "I need to finish classifying this ride before I can quote it." }
+  if (serviceType !== "airport_arrival" && serviceType !== "hourly" && !["one_way", "round_trip"].includes(tripType)) return { error: "Please confirm whether this is a one-way or round-trip ride before I quote it." }
+  if ((serviceType === "airport_departure" || serviceType === "airport_arrival") && !Object.prototype.hasOwnProperty.call(args, "airline")) return { error: "What airline? If you do not know, say that and I will continue." }
+
+  return { pickup, destination, passengerCount }
+}
+
 export async function POST(request: Request) {
   const ip = getClientIp(request)
   const allowed = await checkDurableRateLimit(`mox-action:${ip}`, 18, 60 * 60 * 1000, { failClosed: true })
@@ -33,11 +66,9 @@ export async function POST(request: Request) {
 
     // --- Read-only: no session token required ---
     if (agent.id === "limo" && body.tool === "get_volimox_demo_quote") {
-      const quote = await buildGlobalDemoQuote({
-        pickup: text(args.pickup_address, 240),
-        destination: text(args.destination_address, 240),
-        passengers: Math.max(1, Math.min(80, Math.trunc(Number(args.passenger_count) || 1))),
-      })
+      const validated = validateLimoQuoteArgs(args)
+      if ("error" in validated) return NextResponse.json({ ok: false, error: validated.error }, { status: 400 })
+      const quote = await buildGlobalDemoQuote({ pickup: validated.pickup, destination: validated.destination, passengers: validated.passengerCount })
       return NextResponse.json({ ok: true, tool: body.tool, result: { ...quote, message: `Route resolved at ${quote.distanceMiles.toFixed(1)} miles and ${quote.durationMinutes} minutes. Illustrative quote: $${quote.estimatedValueUsd.toFixed(2)}.` } })
     }
 

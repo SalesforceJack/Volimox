@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import {
-  ArrowUpRight,
   Check,
   Funnel,
   MagnifyingGlass,
@@ -24,12 +23,6 @@ const statusFilters: Array<{ value: StatusFilter; label: string }> = [
   { value: "next", label: "Next connectors" },
   { value: "planned", label: "Planned" },
 ]
-
-const statusTone: Record<IntegrationStatus, string> = {
-  "in-use": "bg-[#e9f2dc] text-[#446026]",
-  next: "bg-[#fff1bf] text-[#6d5500]",
-  planned: "bg-canvas-muted text-ink-muted",
-}
 
 export function AppDirectory() {
   const [query, setQuery] = useState("")
@@ -152,24 +145,17 @@ export function AppDirectory() {
           </div>
 
           {filteredApps.length > 0 ? (
-            <div className="mt-6 grid gap-px bg-line-strong md:grid-cols-2">
+            <div className="mt-6 grid border-t border-line-strong md:grid-cols-2 md:gap-x-10">
               {filteredApps.map((app) => (
                 <Link
                   key={app.slug}
                   href={`/apps/${app.slug}`}
-                  className="group flex min-h-[260px] flex-col bg-canvas-muted p-5 transition-colors hover:bg-white focus-visible:bg-white sm:p-7"
+                  className="group flex min-h-[124px] gap-3 border-b border-line py-5 pr-4 transition-colors hover:bg-white focus-visible:bg-white sm:gap-4 sm:py-6 sm:pr-6"
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <AppLogo app={app} size="sm" />
-                    <ArrowUpRight size={18} className="text-ink-faint transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />
-                  </div>
-                  <div className="mt-auto pt-12">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-ink-faint">{app.category}</span>
-                      <span className={`px-2 py-1 font-mono text-[9px] uppercase tracking-[0.12em] ${statusTone[app.status]}`}>{app.statusLabel}</span>
-                    </div>
-                    <h3 className="mt-3 text-xl font-semibold tracking-[-0.04em] text-ink">{app.name}</h3>
-                    <p className="mt-2 max-w-md text-sm leading-6 text-ink-muted">{app.description}</p>
+                  <AppLogo app={app} size="sm" />
+                  <div className="min-w-0 pt-0.5">
+                    <h3 className="text-base font-semibold tracking-[-0.035em] text-ink transition-colors group-hover:text-ink-muted">{app.name}</h3>
+                    <p className="mt-1 line-clamp-2 max-w-md text-sm leading-5 text-ink-muted">{app.description}</p>
                   </div>
                 </Link>
               ))}

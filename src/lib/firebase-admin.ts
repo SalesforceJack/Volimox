@@ -90,6 +90,8 @@ function serviceAccount(): ParsedServiceAccount | null {
 let _volimoxDb: Firestore | null = null
 
 export function demoDb(): Firestore | null {
+  // The explicit local walkthrough must never initialize a configured database.
+  if (process.env.NODE_ENV !== "production" && process.env.VOLIMOX_LOCAL_DEMO === "true") return null
   if (_volimoxDb) return _volimoxDb
 
   const account = serviceAccount()
@@ -190,6 +192,8 @@ export function getRateLimitsCollection(db: Firestore, tenantId?: string) {
  *   - tenants/{tenantId}/demoLeads           — auto-delete aged demo leads (90 days)
  *   - tenants/{tenantId}/demoAgentLeads      — auto-delete aged agent leads (90 days)
  *   - tenants/{tenantId}/demoReservations    — auto-delete aged reservations (90 days)
+ *   - tenants/{tenantId}/verticalDemoReservations — auto-delete aged non-Limo demo reservations (90 days)
+ *   - tenants/{tenantId}/verticalDemoSideEffects — auto-delete completed non-Limo notification effects
  *   - tenants/{tenantId}/contactLeads        — auto-delete aged contact submissions (90 days)
  *
  * These policies are NOT currently enabled. They must be configured via the

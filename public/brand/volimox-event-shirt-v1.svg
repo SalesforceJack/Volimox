@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="220mm"
+     height="50mm"
+     viewBox="0 0 220 50"
+     role="img"
+     aria-labelledby="title description"
+     shape-rendering="geometricPrecision">
+  <title id="title">Volimox Event T-shirt v1</title>
+  <desc id="description">Compact horizontal Volimox lockup for black garments: a light geometric V mark with a centered yellow square accent and a widely tracked VOLIMOX wordmark.</desc>
+
+  <!-- Transparent black-shirt master. Artwork is intentionally font-independent. -->
+  <g id="volimox-event-shirt-v1" fill="#F1F2EE">
+    <!-- Stylized V mark -->
+    <g id="v-mark" aria-label="Volimox V mark">
+      <path d="M 2.5,6.5 H 10.2 L 27.4,37.9 L 21.1,42.1 Z" />
+      <path d="M 39.8,6.5 H 47.5 L 28.9,42.1 L 22.6,37.9 Z" />
+      <rect x="20.9" y="35.4" width="8.2" height="8.2" rx="0.25" fill="#F4C400" />
+    </g>
+
+    <!-- Custom geometric wordmark; letterforms are paths/strokes, not dependent on installed fonts. -->
+    <g id="wordmark"
+       fill="none"
+       stroke="#F1F2EE"
+       stroke-width="1.5"
+       stroke-linecap="square"
+       stroke-linejoin="miter"
+       aria-label="VOLIMOX">
+      <!-- V -->
+      <path d="M 58,18.8 L 63.5,31.3 L 69,18.8" />
+      <!-- O -->
+      <rect x="78" y="18.8" width="15" height="12.5" rx="6.25" />
+      <!-- L -->
+      <path d="M 103,18.8 V 31.3 H 115" />
+      <!-- I -->
+      <path d="M 125,18.8 V 31.3" />
+      <!-- M -->
+      <path d="M 135,31.3 V 18.8 L 143,27.8 L 151,18.8 V 31.3" />
+      <!-- O -->
+      <rect x="161" y="18.8" width="15" height="12.5" rx="6.25" />
+      <!-- X -->
+      <path d="M 186,18.8 L 200,31.3 M 200,18.8 L 186,31.3" />
+    </g>
+  </g>
+</svg>

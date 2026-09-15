@@ -1,25 +1,10 @@
-import type { SimpleIcon } from "simple-icons"
-import {
-  siAirtable,
-  siCalendly,
-  siGmail,
-  siGooglemaps,
-  siHubspot,
-  siShopify,
-  siStripe,
-  siZendesk,
-} from "simple-icons"
+import { integrationCatalog } from "@/config/integrationCatalog"
 
-const platforms: Array<{ name: string; icon: SimpleIcon }> = [
-  { name: "Google Maps", icon: siGooglemaps },
-  { name: "Stripe", icon: siStripe },
-  { name: "HubSpot", icon: siHubspot },
-  { name: "Gmail", icon: siGmail },
-  { name: "Airtable", icon: siAirtable },
-  { name: "Calendly", icon: siCalendly },
-  { name: "Zendesk", icon: siZendesk },
-  { name: "Shopify", icon: siShopify },
-]
+const featuredSlugs = ["twilio", "stripe", "google-calendar", "salesforce", "limo-anywhere"] as const
+const platforms = featuredSlugs.flatMap((slug) => {
+  const integration = integrationCatalog.find((item) => item.slug === slug)
+  return integration ? [{ name: integration.name, src: integration.logo.src }] : []
+})
 
 export function IntegrationMarquee() {
   return (
@@ -28,7 +13,7 @@ export function IntegrationMarquee() {
         id="integration-marquee-title"
         className="px-5 text-center font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-ink-faint"
       >
-        Built to orchestrate the tools your team already uses
+        Representative workflow connections
       </p>
 
       <div className="integration-marquee mt-8 overflow-hidden sm:mt-10">
@@ -46,11 +31,9 @@ export function IntegrationMarquee() {
 function LogoGroup() {
   return (
     <div className="integration-logo-group">
-      {platforms.map(({ name, icon }) => (
+      {platforms.map(({ name, src }) => (
         <div key={name} className="integration-logo" aria-label={name}>
-          <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-            <path d={icon.path} fill="currentColor" />
-          </svg>
+          <img src={src} alt="" aria-hidden="true" loading="eager" />
           <span>{name}</span>
         </div>
       ))}

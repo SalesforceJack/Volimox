@@ -45,6 +45,9 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+      - name: Run Example Limo Vitest coverage
+        run: npm run test:example-limo
+
       - name: Run Firestore emulator tests
         run: npx --yes firebase-tools@13.35.1 emulators:exec --only firestore --project volimox-platform "npm run test:firestore"
 

@@ -4,7 +4,9 @@ import { checkDurableRateLimit, hashRateLimitKey } from "@/lib/durable-rate-limi
 import { sendDemoExperienceEmail, sendLeadNotification, validateSmtpConfig } from "@/lib/mail"
 import {
   createSessionToken,
+  deriveDefaultIdempotencyKey,
   event,
+  findSessionByIdempotencyKey,
   getOrCreateFollowUpSession,
   publicBaseUrl,
   publicSession,
@@ -19,25 +21,33 @@ import { getSideEffectsCollection, demoDb, getDemoTenantId } from "@/lib/firebas
 export const runtime = "nodejs"
 
 export async function POST(request: Request) {
-  const ip = getClientIp(request)
-  if (!(await checkDurableRateLimit(`follow-up-session:${ip}`, 4, 60 * 60 * 1000, { failClosed: true }))) {
-    return NextResponse.json({ ok: false, error: "You have reached the live demo limit. Please try again later." }, { status: 429 })
-  }
-
   try {
     const body = await request.json() as Record<string, unknown>
     const input = validateNewSession(body)
     if (!input) {
       return NextResponse.json({ ok: false, error: "Enter a valid name, email, and mobile number, then approve SMS and email for this demo." }, { status: 400 })
     }
-    if (!(await checkDurableRateLimit(`follow-up-phone:${hashRateLimitKey(input.phone)}`, 2, 24 * 60 * 60 * 1000, { failClosed: true }))) {
-      return NextResponse.json({ ok: false, error: "This phone number has reached today's demo limit." }, { status: 429 })
-    }
 
     const rawKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : ""
+    const idempotencyKey = rawKey || deriveDefaultIdempotencyKey(input)
+    const existingSession = await findSessionByIdempotencyKey(idempotencyKey)
+
+    // Retries for an existing idempotent session must reach the side-effect
+    // state machine. Rate limiting them here can strand a valid demo after a
+    // provider timeout or another recoverable failure.
+    if (!existingSession) {
+      const ip = getClientIp(request)
+      if (!(await checkDurableRateLimit(`follow-up-session:${ip}`, 4, 60 * 60 * 1000, { failClosed: true }))) {
+        return NextResponse.json({ ok: false, error: "You have reached the live demo limit. Please try again later." }, { status: 429 })
+      }
+      if (!(await checkDurableRateLimit(`follow-up-phone:${hashRateLimitKey(input.phone)}`, 2, 24 * 60 * 60 * 1000, { failClosed: true }))) {
+        return NextResponse.json({ ok: false, error: "This phone number has reached today's demo limit." }, { status: 429 })
+      }
+    }
+
     let currentSession
     try {
-      const result = await getOrCreateFollowUpSession({ ...input, idempotencyKey: rawKey || undefined })
+      const result = await getOrCreateFollowUpSession({ ...input, idempotencyKey })
       currentSession = result.session
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)

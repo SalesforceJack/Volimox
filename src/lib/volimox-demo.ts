@@ -212,3 +212,40 @@ export async function sendDemoSms(phone: string, url: string): Promise<{ sent: t
 
   return { sent: true, messageSid: payload.sid }
 }
+
+export async function sendVerticalDemoReservationSms(input: {
+  phone: string
+  agentName: string
+  reservationId: string
+  requestedStartIso: string
+  serviceSummary: string
+}): Promise<{ sent: true; messageSid: string } | { sent: false; reasonCode: string }> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim()
+  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim()
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID?.trim()
+  const dedicatedFrom = process.env.VOLIMOX_DEMO_PHONE_NUMBER?.trim() || process.env.TWILIO_DEMO_PHONE_NUMBER?.trim()
+  const from = dedicatedFrom || process.env.TWILIO_PHONE_NUMBER?.trim()
+
+  if (!accountSid || !authToken || (!messagingServiceSid && !from)) {
+    return { sent: false, reasonCode: "not_configured" }
+  }
+
+  const body = `Volimox demo: simulated ${input.agentName} request for ${input.requestedStartIso}. ${input.serviceSummary}. Demo ${input.reservationId}. No real appointment was booked.`
+  const form = new URLSearchParams({
+    To: input.phone,
+    Body: body.slice(0, 1500),
+    ...(messagingServiceSid ? { MessagingServiceSid: messagingServiceSid } : { From: from! }),
+  })
+  const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64")
+  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
+    method: "POST",
+    headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
+  })
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok && response.status >= 400 && response.status < 500) return { sent: false, reasonCode: "provider_error" }
+  if (!response.ok) throw new Error("Twilio SMS request failed")
+  if (!payload?.sid) throw new Error("Twilio SMS response missing SID")
+  return { sent: true, messageSid: payload.sid }
+}
