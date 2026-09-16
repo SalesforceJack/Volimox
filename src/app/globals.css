@@ -201,7 +201,7 @@ textarea:focus-visible {
 .integration-marquee-track {
   display: flex;
   width: max-content;
-  animation: integration-marquee 30s linear infinite;
+  animation: integration-marquee 120s linear infinite;
   will-change: transform;
 }
 
@@ -234,10 +234,11 @@ textarea:focus-visible {
   color: hsl(var(--ink));
 }
 
-.integration-logo svg {
+.integration-logo img {
   width: 1.35rem;
   height: 1.35rem;
   flex: none;
+  object-fit: contain;
 }
 
 .integration-logo span {
@@ -273,7 +274,7 @@ select.field-control option {
 
 @media (max-width: 1023px) {
   #system {
-    min-height: 340vh;
+    min-height: 210vh;
   }
 }
 
@@ -283,7 +284,7 @@ select.field-control option {
   }
 
   #system {
-    min-height: 320vh;
+    min-height: 190vh;
   }
 }
 

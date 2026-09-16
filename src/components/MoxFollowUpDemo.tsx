@@ -46,7 +46,7 @@ const initialForm: FormState = {
   consentCall: false,
 }
 
-export function MoxFollowUpDemo() {
+export function MoxFollowUpDemo({ contactHref = "#contact" }: { contactHref?: string }) {
   const completedSessionTracked = useRef("")
   const demoVideoWatched = useRef(false)
   const idempotencyKeyRef = useRef(crypto.randomUUID())
@@ -254,7 +254,7 @@ export function MoxFollowUpDemo() {
             )}
           </div>
 
-          <OutcomeCanvas session={session} businessType={form.businessType} />
+          <OutcomeCanvas session={session} businessType={form.businessType} contactHref={contactHref} />
         </div>
       </div>
     </section>
@@ -266,17 +266,17 @@ function DemoExplainerVideo({ onHalfway }: { onHalfway: () => void }) {
   const startedTracked = useRef(false)
   const halfwayTracked = useRef(false)
   const reduceMotion = useReducedMotion()
+  const [hydrated, setHydrated] = useState(false)
+
+  useEffect(() => {
+    setHydrated(true)
+  }, [])
 
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
 
     video.muted = true
-    if (reduceMotion) {
-      video.pause()
-      video.currentTime = 0
-      return
-    }
 
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry?.isIntersecting) {
@@ -289,11 +289,14 @@ function DemoExplainerVideo({ onHalfway }: { onHalfway: () => void }) {
         startedTracked.current = true
         trackDemoEvent("follow_up_demo_video_started")
       }).catch(() => {
-        // Muted autoplay can still be blocked by browser or battery-saving settings.
+        // The reduced-motion controls provide a manual playback fallback when autoplay is blocked.
       })
     }, { threshold: 0.35 })
 
     observer.observe(video)
+    video.addEventListener("loadeddata", () => {
+      if (video.paused && !reduceMotion) void video.play().catch(() => undefined)
+    }, { once: true })
     return () => {
       observer.disconnect()
       video.pause()
@@ -332,7 +335,11 @@ function DemoExplainerVideo({ onHalfway }: { onHalfway: () => void }) {
           muted
           loop
           playsInline
-          preload="metadata"
+          // `useReducedMotion` is resolved in the browser. Delay the boolean
+          // attribute until after hydration so SSR and the first client render
+          // produce identical video markup.
+          controls={hydrated && reduceMotion ? true : undefined}
+          preload="auto"
           poster="/video/volimox-home-services-demo-poster.jpg"
           aria-label="Volimox missed-call recovery explainer"
           aria-describedby="follow-up-video-description"
@@ -348,7 +355,7 @@ function DemoExplainerVideo({ onHalfway }: { onHalfway: () => void }) {
   )
 }
 
-function OutcomeCanvas({ session, businessType }: { session: PublicFollowUpDemoSession | null; businessType: string }) {
+function OutcomeCanvas({ session, businessType, contactHref }: { session: PublicFollowUpDemoSession | null; businessType: string; contactHref: string }) {
   const reduceMotion = useReducedMotion()
   const messages = session?.messages || []
   const events = session?.events || []
@@ -377,7 +384,7 @@ function OutcomeCanvas({ session, businessType }: { session: PublicFollowUpDemoS
           {!events.length && <div className="border border-white/10 p-5"><p className="text-sm font-semibold">Waiting for a real session</p><p className="mt-2 text-xs leading-5 text-white/40">Call, SMS, reply, follow-up, and lead events will appear here as Twilio confirms them.</p></div>}
           <AnimatePresence initial={false}>{events.slice(-7).map((item, index) => <motion.div key={index} initial={{ opacity: 0, x: reduceMotion ? 0 : 12 }} animate={{ opacity: 1, x: 0 }} transition={reduceMotion ? { duration: 0 } : { delay: Math.min(index * .04, .2) }} className="border border-white/10 bg-black/15 p-4"><div className="flex items-start gap-3"><EventIcon channel={item.channel} status={item.state} /><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold">{item.title}</p><span className={`text-[8px] font-semibold ${item.state === "failed" ? "text-red-300" : item.state === "completed" ? "text-signal" : "text-white/35"}`}>{item.state}</span></div><p className="mt-1 text-[10px] leading-5 text-white/40">{item.detail}</p></div></div></motion.div>)}</AnimatePresence>
         </div>
-        {session?.status === "completed" && <motion.div initial={{ opacity: 0, y: reduceMotion ? 0 : 10 }} animate={{ opacity: 1, y: 0 }} className="mt-auto border-l-4 border-signal bg-white p-5 text-ink"><div className="flex items-center gap-2 text-xs font-semibold text-ink-faint"><CheckCircle weight="fill" className="text-ink" /> Recovered lead</div><p className="mt-3 text-xl font-semibold tracking-[-.04em]">Ready for owner follow-up</p><p className="mt-2 text-xs leading-5 text-ink-muted">Conversation history, urgency, address, and timing stay attached to the lead.</p><a href="#contact" className="mt-5 inline-flex items-center gap-2 text-xs font-semibold text-ink underline underline-offset-4">Build this for my business <ArrowRight size={13} /></a></motion.div>}
+        {session?.status === "completed" && <motion.div initial={{ opacity: 0, y: reduceMotion ? 0 : 10 }} animate={{ opacity: 1, y: 0 }} className="mt-auto border-l-4 border-signal bg-white p-5 text-ink"><div className="flex items-center gap-2 text-xs font-semibold text-ink-faint"><CheckCircle weight="fill" className="text-ink" /> Recovered lead</div><p className="mt-3 text-xl font-semibold tracking-[-.04em]">Ready for owner follow-up</p><p className="mt-2 text-xs leading-5 text-ink-muted">Conversation history, urgency, address, and timing stay attached to the lead.</p><a href={contactHref} className="mt-5 inline-flex items-center gap-2 text-xs font-semibold text-ink underline underline-offset-4">Build this for my business <ArrowRight size={13} /></a></motion.div>}
       </div>
     </div>
   </div>

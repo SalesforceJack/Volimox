@@ -4,6 +4,8 @@ import { BrandMark } from "@/components/BrandMark"
 import { SITE_CONTACT } from "@/config/siteContact"
 
 const footerLinks = [
+  { href: "/#products", label: "Product options" },
+  { href: "/#pilot", label: "Pilot offer" },
   { href: "/apps", label: "Apps" },
   { href: "/privacy", label: "Privacy" },
   { href: "/legal", label: "Legal" },
@@ -19,7 +21,7 @@ export function VolimoxFooter() {
             <BrandMark inverted />
           </Link>
           <p className="mt-6 max-w-md text-sm leading-7 text-white/55">
-            Operational AI systems that move service businesses from conversation to completed work.
+            Voice, booking, and daily operations for limo and black car businesses. Set up and supported by Volimox.
           </p>
           <div className="mt-8 space-y-3 text-sm text-white/65">
             <a className="flex items-center gap-3 transition-colors hover:text-signal" href={"tel:" + SITE_CONTACT.phoneTel}>
@@ -51,13 +53,13 @@ export function VolimoxFooter() {
             ))}
           </nav>
           <p className="max-w-sm text-xs leading-6 text-white/40">
-            The website includes interactive demonstrations. Results shown in a demo are illustrative unless a separate agreement says otherwise.
+            Example Limo is a demonstration. Your production setup, supported connections, and commercial terms are agreed with you before launch.
           </p>
         </div>
       </div>
       <div className="mx-auto flex max-w-[1440px] flex-col gap-3 border-t border-white/15 px-5 py-5 font-mono text-[9px] uppercase tracking-[0.14em] text-white/35 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
         <span>© {new Date().getFullYear()} Volimox</span>
-        <span>AI systems for real operations</span>
+        <span>Your operation. Managed software.</span>
       </div>
     </footer>
   )

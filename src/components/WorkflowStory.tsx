@@ -5,47 +5,31 @@ import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "motion
 import {
   ChatCircleText,
   CheckCircle,
-  CurrencyDollar,
   Database,
   Lightning,
-  UserSwitch,
 } from "@phosphor-icons/react"
 
 const story = [
   {
     number: "01",
-    title: "Understand the request",
-    copy: "Voice, chat, SMS, email, and forms become one structured operational record.",
-    detail: "Intent · locations · timing · constraints",
+    title: "Capture the request",
+    copy: "Collect the pickup, destination, timing, and passenger details your team needs to review a trip.",
+    detail: "Pickup · drop-off · time · passengers",
     icon: ChatCircleText,
   },
   {
     number: "02",
-    title: "Apply business logic",
-    copy: "Deterministic rules validate service areas, inventory, availability, and pricing before anything executes.",
-    detail: "Rules · APIs · confidence · consent",
+    title: "Validate and quote",
+    copy: "Check the route and vehicle against your business rules, then ask the customer to approve the quote from your agreed pricing source.",
+    detail: "Route · vehicle · price · approval",
     icon: Lightning,
   },
   {
     number: "03",
-    title: "Complete the transaction",
-    copy: "The system produces the quote, secures payment, and confirms the next action while the customer is still engaged.",
-    detail: "Quote · approval · payment · confirmation",
-    icon: CurrencyDollar,
-  },
-  {
-    number: "04",
-    title: "Fulfill across your stack",
-    copy: "Scheduling, dispatch, CRM, and reporting update together so no one has to re-enter the work.",
-    detail: "Dispatch · calendar · CRM · audit log",
+    title: "Confirm and hand off",
+    copy: "Confirm each booking and payment in the connected system. Your team handles manual driver assignment and requests that need a person.",
+    detail: "Booking · payment check · operator handoff",
     icon: Database,
-  },
-  {
-    number: "05",
-    title: "Escalate the exception",
-    copy: "When policy, confidence, or customer intent crosses a boundary, a human receives the full context.",
-    detail: "Reason · transcript · owner · next step",
-    icon: UserSwitch,
   },
 ]
 
@@ -65,16 +49,29 @@ export function WorkflowStory() {
   const CurrentIcon = current.icon
 
   return (
-    <section ref={root} id="system" className="relative min-h-[390vh] border-t border-line bg-canvas">
-      <div className="sticky top-[72px] flex min-h-[calc(100dvh-72px)] items-center overflow-hidden">
+    <section ref={root} id="system" className="relative border-t border-line bg-canvas lg:min-h-[210dvh]">
+      <div className="flex items-center overflow-hidden lg:sticky lg:top-[72px] lg:min-h-[calc(100dvh-72px)]">
         <div className="mx-auto grid w-full max-w-[1440px] gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[0.78fr_1.22fr] lg:px-12">
           <div className="self-center">
-            <p className="section-kicker">Conversation to completion</p>
-            <h2 className="section-title max-w-[9ch]">One request. One controlled run.</h2>
+            <p className="section-kicker">The workflow we set up with you</p>
+            <h2 className="section-title mt-5 max-w-[10ch]">A clear next step for every request.</h2>
             <p className="mt-6 max-w-md text-base leading-7 text-ink-muted">
-              Volimox joins the judgment layer and the execution layer, so an AI interaction can finish real work safely.
+              The exact actions depend on your setup and verified connections. We agree the booking rules and human handoff before launch.
             </p>
-            <div className="mt-10 hidden gap-2 lg:flex" aria-hidden="true">
+            <div className="mt-8 flex flex-wrap gap-2" role="group" aria-label="Explore workflow steps">
+              {story.map((item, index) => (
+                <button
+                  key={item.number}
+                  type="button"
+                  onClick={() => setActive(index)}
+                  aria-pressed={active === index}
+                  className={`min-h-11 border px-3 py-2 text-left text-xs font-medium transition-colors ${active === index ? "border-ink bg-ink text-white" : "border-line-strong text-ink-muted hover:bg-white"}`}
+                >
+                  {item.number} {item.title}
+                </button>
+              ))}
+            </div>
+            <div className="mt-8 hidden gap-2 lg:flex" aria-hidden="true">
               {story.map((item, index) => (
                 <span key={item.number} className={`h-1 flex-1 transition-colors duration-500 ${index <= active ? "bg-signal" : "bg-line-strong"}`} />
               ))}
@@ -85,14 +82,14 @@ export function WorkflowStory() {
             <div className="absolute inset-0 operations-grid opacity-25" aria-hidden="true" />
             <div className="relative flex h-full min-h-[420px] flex-col">
               <div className="flex items-center justify-between border-b border-white/10 pb-5">
-                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">Operational runbook</span>
-                <span className="font-mono text-[10px] text-signal">STEP {current.number} / 05</span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/55">Example workflow</span>
+                <span className="font-mono text-[10px] text-signal">STEP {current.number} / 0{story.length}</span>
               </div>
 
               <div className="grid flex-1 items-center gap-8 py-10 sm:grid-cols-[auto_1fr]">
                 <motion.div
                   key={`icon-${current.number}`}
-                  initial={{ opacity: 0, scale: 0.85, rotate: -5 }}
+                  initial={false}
                   animate={{ opacity: 1, scale: 1, rotate: 0 }}
                   transition={{ duration: 0.45 }}
                   className="flex h-24 w-24 items-center justify-center bg-signal text-ink sm:h-32 sm:w-32"
@@ -102,7 +99,7 @@ export function WorkflowStory() {
 
                 <motion.div
                   key={current.number}
-                  initial={{ opacity: 0, y: 24 }}
+                  initial={false}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.45 }}
                 >

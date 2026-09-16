@@ -4,11 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3002",
+    "dev:local": "node scripts/dev-local.mjs",
+    "check:setup": "node scripts/check-setup.mjs",
+    "test:local-demo": "vitest run --configLoader native src/tests/local-demo.test.ts src/tests/local-demo-middleware.test.ts",
     "build": "next build",
     "start": "next start -p 3002",
     "lint": "tsc --noEmit",
     "test": "npx tsx --tsconfig tsconfig.json src/tests/side-effect-machine.test.ts && npx tsx --tsconfig tsconfig.json src/tests/final-hardening.test.mjs && npx tsx --tsconfig tsconfig.json src/tests/observability.test.ts && npx tsx --tsconfig tsconfig.json src/tests/proton-request-id.test.ts && npx tsx --tsconfig tsconfig.json src/tests/ready-route.test.ts && node scripts/postman-validator.test.mjs",
     "validate:postman": "node ./scripts/validate-postman.mjs",
+    "test:example-limo": "vitest run src/tests/example-limo.test.ts src/tests/example-limo-audit.test.ts src/tests/example-limo-client-state.test.ts src/tests/example-limo-fixes.test.ts",
+    "test:example-limo:live": "tsx --tsconfig tsconfig.json scripts/run-example-limo-live-conversations.ts",
     "test:firestore": "npx tsx --tsconfig tsconfig.json src/tests/firestore-side-effect.test.ts",
     "retell:sync-demo": "node scripts/sync-retell-demo-agent.mjs"
   },
@@ -35,6 +40,7 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.7"
   }
 }

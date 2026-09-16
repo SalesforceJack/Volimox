@@ -1,19 +1,31 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { List, X } from "@phosphor-icons/react"
 import { BrandMark } from "@/components/BrandMark"
 
 const links = [
-  { href: "/apps", label: "Apps" },
+  { href: "#products", label: "Your options" },
   { href: "#system", label: "How it works" },
-  { href: "#capabilities", label: "Systems" },
-  { href: "#proof", label: "Proof" },
-  { href: "#guardrails", label: "Guardrails" },
+  { href: "/example-limo", label: "Try the demo" },
+  { href: "#pilot", label: "Pilot offer" },
 ]
 
 export function SiteHeader({ homePage = true }: { homePage?: boolean }) {
   const [open, setOpen] = useState(false)
+  const menuButton = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      setOpen(false)
+      menuButton.current?.focus()
+    }
+    document.addEventListener("keydown", closeOnEscape)
+    return () => document.removeEventListener("keydown", closeOnEscape)
+  }, [open])
+
   const sectionHref = (href: string) => {
     if (!href.startsWith("#")) return href
     return homePage ? href : "/" + href
@@ -37,12 +49,13 @@ export function SiteHeader({ homePage = true }: { homePage?: boolean }) {
         </nav>
 
         <a href={contactHref} className="button-primary hidden sm:inline-flex" data-cta="header-operation-map">
-          Map my operation
+          Let&apos;s talk
         </a>
 
         <button
           type="button"
-          className="flex h-11 w-11 items-center justify-center rounded-lg border border-line bg-white text-ink sm:hidden"
+          ref={menuButton}
+          className="flex h-11 w-11 items-center justify-center rounded-lg border border-line bg-white text-ink transition-colors hover:bg-canvas-muted active:translate-y-px lg:hidden"
           aria-expanded={open}
           aria-controls="mobile-menu"
           aria-label={open ? "Close navigation" : "Open navigation"}
@@ -53,7 +66,7 @@ export function SiteHeader({ homePage = true }: { homePage?: boolean }) {
       </div>
 
       {open && (
-        <nav id="mobile-menu" className="border-t border-line bg-canvas px-5 pb-6 pt-4 sm:hidden" aria-label="Mobile navigation">
+        <nav id="mobile-menu" className="border-t border-line bg-canvas px-5 pb-6 pt-4 sm:px-8 lg:hidden" aria-label="Mobile navigation">
           <div className="flex flex-col">
             {links.map((link) => (
               <a
@@ -66,7 +79,7 @@ export function SiteHeader({ homePage = true }: { homePage?: boolean }) {
               </a>
             ))}
             <a href={contactHref} className="button-primary mt-5 justify-center" data-cta="mobile-operation-map" onClick={() => setOpen(false)}>
-              Map my operation
+              Let&apos;s talk
             </a>
           </div>
         </nav>

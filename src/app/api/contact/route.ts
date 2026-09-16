@@ -31,9 +31,9 @@ export async function POST(request: Request) {
     const fullName = cleanLine(String(body.fullName ?? ""))
     const email = cleanLine(String(body.email ?? "")).toLowerCase()
     const companyName = cleanLine(String(body.companyName ?? ""))
-    const industry = cleanLine(String(body.industry ?? ""))
+    const industry = cleanLine(String(body.industry ?? "")) || "Not specified"
     const projectScope = String(body.projectScope ?? "").trim()
-    const estimatedVolume = cleanLine(String(body.estimatedVolume ?? ""))
+    const estimatedVolume = cleanLine(String(body.estimatedVolume ?? "")) || "Not provided"
     const businessPhone = cleanLine(String(body.businessPhone ?? ""))
     const currentPhoneProvider = cleanLine(String(body.currentPhoneProvider ?? ""))
     const bookingSystem = cleanLine(String(body.bookingSystem ?? ""))
@@ -43,9 +43,7 @@ export async function POST(request: Request) {
     if (!fullName) missing.push("fullName")
     if (!email) missing.push("email")
     if (!companyName) missing.push("companyName")
-    if (!industry) missing.push("industry")
     if (!projectScope) missing.push("projectScope")
-    if (!estimatedVolume) missing.push("estimatedVolume")
 
     if (missing.length > 0) {
       return NextResponse.json({ success: false, error: `Missing required fields: ${missing.join(", ")}` }, { status: 400 })
@@ -71,7 +69,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "One or more fields exceed the allowed length." }, { status: 400 })
     }
 
-    if (!/^\d{1,9}$/.test(estimatedVolume) || Number(estimatedVolume) < 1) {
+    if (estimatedVolume !== "Not provided" && (!/^\d{1,9}$/.test(estimatedVolume) || Number(estimatedVolume) < 1)) {
       return NextResponse.json({ success: false, error: "Please provide a valid monthly request volume." }, { status: 400 })
     }
 

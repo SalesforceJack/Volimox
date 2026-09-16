@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 .next/
+.next-local/
 
 # Environment
 .env.local

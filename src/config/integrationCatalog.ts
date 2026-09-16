@@ -1,25 +1,3 @@
-import type { SimpleIcon } from "simple-icons"
-import {
-  siAirtable,
-  siCalendly,
-  siFacebook,
-  siGmail,
-  siGoogleads,
-  siGooglecalendar,
-  siGoogleforms,
-  siGoogledrive,
-  siGooglesheets,
-  siHubspot,
-  siMailchimp,
-  siNotion,
-  siPaypal,
-  siQuickbooks,
-  siSquare,
-  siStripe,
-  siTypeform,
-  siZoho,
-} from "simple-icons"
-
 export type IntegrationStatus = "in-use" | "next" | "planned"
 export type IntegrationAuth = "oauth" | "api-key" | "webhook" | "managed"
 
@@ -33,7 +11,7 @@ export type IntegrationDefinition = {
   statusLabel: string
   auth: IntegrationAuth
   authLabel: string
-  logo: { type: "simple"; icon: SimpleIcon } | { type: "remote"; src: string; source: string }
+  logo: { type: "image"; src: string; source: string }
   website: string
   workflows: Array<{ title: string; description: string }>
   triggers: string[]
@@ -42,16 +20,11 @@ export type IntegrationDefinition = {
   related: string[]
 }
 
-const remoteLogo = (src: string, source: string): IntegrationDefinition["logo"] => ({
-  type: "remote",
+const imageLogo = (src: string, source: string): IntegrationDefinition["logo"] => ({
+  type: "image",
   src,
   source,
 })
-
-const faviconLogo = (domain: string, source: string): IntegrationDefinition["logo"] =>
-  remoteLogo(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`, source)
-
-const simpleLogo = (icon: SimpleIcon): IntegrationDefinition["logo"] => ({ type: "simple", icon })
 
 export const integrationCategories = [
   "All apps",
@@ -77,7 +50,10 @@ export const integrationCatalog = [
     statusLabel: "Next connector",
     auth: "oauth",
     authLabel: "Google OAuth",
-    logo: simpleLogo(siGmail),
+    logo: imageLogo(
+      "/apps/logos/gmail-2026.ico",
+      "https://ssl.gstatic.com/images/branding/productlogos/gmail_2026/v2/ico/gmail_2026_256dp.ico",
+    ),
     website: "https://workspace.google.com/products/gmail/",
     workflows: [
       { title: "New inquiry to lead", description: "Extract a customer request from an email and create a lead for the right team." },
@@ -98,7 +74,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Microsoft OAuth",
-    logo: faviconLogo("outlook.com", "https://outlook.office.com/"),
+    logo: imageLogo("/apps/logos/microsoft-outlook.jpg", "https://outlook.office.com/"),
     website: "https://www.microsoft.com/microsoft-365/outlook/outlook-business",
     workflows: [
       { title: "Email to dispatch task", description: "Convert a customer email into a reviewable operations task." },
@@ -119,7 +95,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Slack OAuth",
-    logo: faviconLogo("slack.com", "https://slack.com/"),
+    logo: imageLogo("/apps/logos/slack.png", "https://slack.com/"),
     website: "https://slack.com/intl/en-us/features",
     workflows: [
       { title: "High-intent lead alert", description: "Post a structured lead summary to a private sales or dispatch channel." },
@@ -140,7 +116,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Microsoft OAuth",
-    logo: faviconLogo("teams.microsoft.com", "https://www.microsoft.com/microsoft-teams/"),
+    logo: imageLogo("/apps/logos/microsoft-teams.png", "https://www.microsoft.com/microsoft-teams/"),
     website: "https://www.microsoft.com/microsoft-teams/group-chat-software",
     workflows: [
       { title: "New lead to team", description: "Post a lead card to the selected team and channel." },
@@ -161,7 +137,7 @@ export const integrationCatalog = [
     statusLabel: "Used in Volimox demos",
     auth: "managed",
     authLabel: "Managed connection",
-    logo: faviconLogo("twilio.com", "https://www.twilio.com/"),
+    logo: imageLogo("/apps/logos/twilio.png", "https://www.twilio.com/"),
     website: "https://www.twilio.com/messaging",
     workflows: [
       { title: "Missed call to text-back", description: "Send a clear SMS after a missed call and capture the customer’s need." },
@@ -182,7 +158,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "RingCentral OAuth",
-    logo: faviconLogo("ringcentral.com", "https://www.ringcentral.com/"),
+    logo: imageLogo("/apps/logos/ringcentral.png", "https://www.ringcentral.com/"),
     website: "https://www.ringcentral.com/office/features.html",
     workflows: [
       { title: "Call outcome to lead", description: "Use a completed call event to create or update a customer record." },
@@ -203,7 +179,10 @@ export const integrationCatalog = [
     statusLabel: "Next connector",
     auth: "oauth",
     authLabel: "Google OAuth",
-    logo: simpleLogo(siGooglecalendar),
+    logo: imageLogo(
+      "/apps/logos/google-calendar-2026.ico",
+      "https://ssl.gstatic.com/images/branding/productlogos/calendar_2026/v2/ico/calendar_2026_256dp.ico",
+    ),
     website: "https://workspace.google.com/products/calendar/",
     workflows: [
       { title: "Qualified lead to calendar hold", description: "Create a reviewable hold after the required booking details are collected." },
@@ -224,7 +203,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Microsoft OAuth",
-    logo: faviconLogo("outlook.com", "https://outlook.office.com/"),
+    logo: imageLogo("/apps/logos/microsoft-outlook-calendar.jpg", "https://outlook.office.com/"),
     website: "https://www.microsoft.com/microsoft-365/outlook/outlook-business",
     workflows: [
       { title: "Request to calendar hold", description: "Create a tentative event after a customer request passes the configured rules." },
@@ -245,7 +224,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Calendly OAuth",
-    logo: simpleLogo(siCalendly),
+    logo: imageLogo("/apps/logos/calendly.png", "https://calendly.com/"),
     website: "https://calendly.com/",
     workflows: [
       { title: "Lead to booking link", description: "Send the right scheduling link after the lead meets the configured criteria." },
@@ -266,7 +245,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "api-key",
     authLabel: "Scoped API token",
-    logo: faviconLogo("acuityscheduling.com", "https://acuityscheduling.com/"),
+    logo: imageLogo("/apps/logos/acuity-scheduling.png", "https://acuityscheduling.com/"),
     website: "https://www.squarespace.com/scheduling",
     workflows: [
       { title: "Appointment to lead", description: "Create a structured lead when a new appointment is booked." },
@@ -287,7 +266,7 @@ export const integrationCatalog = [
     statusLabel: "Next connector",
     auth: "oauth",
     authLabel: "Salesforce OAuth",
-    logo: faviconLogo("salesforce.com", "https://www.salesforce.com/"),
+    logo: imageLogo("/apps/logos/salesforce.png", "https://www.salesforce.com/"),
     website: "https://www.salesforce.com/",
     workflows: [
       { title: "Qualified inquiry to lead", description: "Create a lead only after the configured required fields are present." },
@@ -308,7 +287,7 @@ export const integrationCatalog = [
     statusLabel: "Next connector",
     auth: "oauth",
     authLabel: "HubSpot OAuth",
-    logo: simpleLogo(siHubspot),
+    logo: imageLogo("/apps/logos/hubspot.png", "https://www.hubspot.com/"),
     website: "https://www.hubspot.com/products/crm",
     workflows: [
       { title: "Form or call to contact", description: "Create or update a contact and preserve the original request." },
@@ -329,7 +308,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "HighLevel OAuth",
-    logo: faviconLogo("gohighlevel.com", "https://www.gohighlevel.com/"),
+    logo: imageLogo("/apps/logos/highlevel.png", "https://www.gohighlevel.com/"),
     website: "https://www.gohighlevel.com/",
     workflows: [
       { title: "Inbound lead to opportunity", description: "Create or update a pipeline opportunity from a structured customer request." },
@@ -350,7 +329,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Zoho OAuth",
-    logo: simpleLogo(siZoho),
+    logo: imageLogo("/apps/logos/zoho-crm.png", "https://www.zoho.com/crm/"),
     website: "https://www.zoho.com/crm/",
     workflows: [
       { title: "New request to lead", description: "Create a lead with a source and conversation summary." },
@@ -371,7 +350,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Pipedrive OAuth",
-    logo: faviconLogo("pipedrive.com", "https://www.pipedrive.com/"),
+    logo: imageLogo("/apps/logos/pipedrive.png", "https://www.pipedrive.com/"),
     website: "https://www.pipedrive.com/",
     workflows: [
       { title: "Qualified lead to deal", description: "Create a deal and assign it to the correct pipeline stage." },
@@ -392,7 +371,7 @@ export const integrationCatalog = [
     statusLabel: "Next connector",
     auth: "oauth",
     authLabel: "Stripe OAuth",
-    logo: simpleLogo(siStripe),
+    logo: imageLogo("/apps/logos/stripe.png", "https://stripe.com/"),
     website: "https://stripe.com/",
     workflows: [
       { title: "Approved quote to payment link", description: "Create a payment request only after the required quote state is confirmed." },
@@ -413,7 +392,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Square OAuth",
-    logo: simpleLogo(siSquare),
+    logo: imageLogo("/apps/logos/square.png", "https://squareup.com/us/en"),
     website: "https://squareup.com/us/en",
     workflows: [
       { title: "Payment to customer record", description: "Update a customer record after a verified Square payment." },
@@ -434,7 +413,7 @@ export const integrationCatalog = [
     statusLabel: "Next connector",
     auth: "oauth",
     authLabel: "Intuit OAuth",
-    logo: simpleLogo(siQuickbooks),
+    logo: imageLogo("/apps/logos/quickbooks-online.png", "https://quickbooks.intuit.com/"),
     website: "https://quickbooks.intuit.com/",
     workflows: [
       { title: "Completed job to invoice", description: "Create a reviewable invoice from an approved service record." },
@@ -455,7 +434,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "PayPal OAuth",
-    logo: simpleLogo(siPaypal),
+    logo: imageLogo("/apps/logos/paypal.png", "https://www.paypal.com/us/business"),
     website: "https://www.paypal.com/us/business",
     workflows: [
       { title: "Payment completed to confirmation", description: "Send a confirmation only after the payment event is verified." },
@@ -476,7 +455,10 @@ export const integrationCatalog = [
     statusLabel: "Next connector",
     auth: "oauth",
     authLabel: "Google OAuth",
-    logo: simpleLogo(siGooglesheets),
+    logo: imageLogo(
+      "/apps/logos/google-sheets-2026.ico",
+      "https://ssl.gstatic.com/images/branding/productlogos/sheets_2026/v2/ico/sheets_2026_256dp.ico",
+    ),
     website: "https://workspace.google.com/products/sheets/",
     workflows: [
       { title: "New lead to review row", description: "Append a structured lead row without losing the original source." },
@@ -497,7 +479,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Airtable OAuth",
-    logo: simpleLogo(siAirtable),
+    logo: imageLogo("/apps/logos/airtable.png", "https://www.airtable.com/"),
     website: "https://www.airtable.com/",
     workflows: [
       { title: "Lead to base record", description: "Create a record in the selected base with normalized customer fields." },
@@ -518,7 +500,10 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Google OAuth",
-    logo: simpleLogo(siGoogleforms),
+    logo: imageLogo(
+      "/apps/logos/google-forms-2026.ico",
+      "https://ssl.gstatic.com/images/branding/productlogos/forms_2026/v2/ico/forms_2026_256dp.ico",
+    ),
     website: "https://www.google.com/forms/about/",
     workflows: [
       { title: "Form submission to lead", description: "Normalize form answers into the same lead model as voice and SMS." },
@@ -539,7 +524,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Typeform OAuth",
-    logo: simpleLogo(siTypeform),
+    logo: imageLogo("/apps/logos/typeform.png", "https://www.typeform.com/"),
     website: "https://www.typeform.com/",
     workflows: [
       { title: "Completed form to lead", description: "Create a lead from a completed intake with the form source attached." },
@@ -560,7 +545,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "api-key",
     authLabel: "Scoped API key",
-    logo: faviconLogo("jotform.com", "https://www.jotform.com/"),
+    logo: imageLogo("/apps/logos/jotform.png", "https://www.jotform.com/"),
     website: "https://www.jotform.com/",
     workflows: [
       { title: "Submission to prepared lead", description: "Create a lead with uploaded form documents attached for review." },
@@ -581,7 +566,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Mailchimp OAuth",
-    logo: simpleLogo(siMailchimp),
+    logo: imageLogo("/apps/logos/mailchimp.png", "https://mailchimp.com/"),
     website: "https://mailchimp.com/",
     workflows: [
       { title: "Qualified lead to audience", description: "Add a consented contact to the correct audience and tag." },
@@ -602,7 +587,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Meta OAuth",
-    logo: simpleLogo(siFacebook),
+    logo: imageLogo("/apps/logos/meta-lead-ads.png", "https://www.facebook.com/business/ads/lead-ads"),
     website: "https://www.facebook.com/business/ads/lead-ads",
     workflows: [
       { title: "Ad lead to first response", description: "Create a structured lead and trigger the approved first-response path." },
@@ -623,7 +608,10 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Google Ads OAuth",
-    logo: simpleLogo(siGoogleads),
+    logo: imageLogo(
+      "/apps/logos/google-ads-official.svg",
+      "https://www.gstatic.com/images/branding/productlogos/ads/v5/192px.svg",
+    ),
     website: "https://ads.google.com/",
     workflows: [
       { title: "Lead source to CRM", description: "Preserve campaign and ad group context when a lead enters Volimox." },
@@ -644,7 +632,10 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Google OAuth",
-    logo: simpleLogo(siGoogledrive),
+    logo: imageLogo(
+      "/apps/logos/google-drive-2026.ico",
+      "https://ssl.gstatic.com/images/branding/productlogos/drive_2026/v2/ico/drive_2026_256dp.ico",
+    ),
     website: "https://workspace.google.com/products/drive/",
     workflows: [
       { title: "New lead folder", description: "Create a controlled folder for documents related to a qualified request." },
@@ -665,7 +656,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Dropbox OAuth",
-    logo: faviconLogo("dropbox.com", "https://www.dropbox.com/"),
+    logo: imageLogo("/apps/logos/dropbox.png", "https://www.dropbox.com/"),
     website: "https://www.dropbox.com/business",
     workflows: [
       { title: "New folder for a job", description: "Create a consistent folder structure after a job is approved." },
@@ -686,7 +677,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Notion OAuth",
-    logo: simpleLogo(siNotion),
+    logo: imageLogo("/apps/logos/notion.png", "https://www.notion.so/product"),
     website: "https://www.notion.so/product",
     workflows: [
       { title: "Lead to operations page", description: "Create a structured page for a high-value request in the selected database." },
@@ -707,7 +698,7 @@ export const integrationCatalog = [
     statusLabel: "Next connector",
     auth: "oauth",
     authLabel: "Jobber OAuth",
-    logo: faviconLogo("getjobber.com", "https://getjobber.com/"),
+    logo: imageLogo("/apps/logos/jobber.png", "https://getjobber.com/"),
     website: "https://getjobber.com/",
     workflows: [
       { title: "Customer request to client", description: "Create or update the Jobber client record after intake is complete." },
@@ -728,7 +719,7 @@ export const integrationCatalog = [
     statusLabel: "Partner access required",
     auth: "oauth",
     authLabel: "Partner API credentials",
-    logo: faviconLogo("servicetitan.com", "https://www.servicetitan.com/"),
+    logo: imageLogo("/apps/logos/servicetitan.png", "https://www.servicetitan.com/"),
     website: "https://www.servicetitan.com/",
     workflows: [
       { title: "Lead intake to booking queue", description: "Create a reviewable lead with source and conversation context." },
@@ -749,7 +740,7 @@ export const integrationCatalog = [
     statusLabel: "Planned",
     auth: "oauth",
     authLabel: "Provider authorization",
-    logo: faviconLogo("housecallpro.com", "https://www.housecallpro.com/"),
+    logo: imageLogo("/apps/logos/housecall-pro.png", "https://www.housecallpro.com/"),
     website: "https://www.housecallpro.com/",
     workflows: [
       { title: "Missed call to customer", description: "Create a customer or job request after the text-back conversation is complete." },
@@ -770,7 +761,7 @@ export const integrationCatalog = [
     statusLabel: "Customer API access required",
     auth: "api-key",
     authLabel: "Customer API credentials",
-    logo: faviconLogo("limoanywhere.com", "https://www.limoanywhere.com/"),
+    logo: imageLogo("/apps/logos/limo-anywhere.png", "https://www.limoanywhere.com/"),
     website: "https://www.limoanywhere.com/",
     workflows: [
       { title: "Ride request to reservation review", description: "Create a reviewable reservation request after route and passenger details are complete." },
@@ -791,7 +782,7 @@ export const integrationCatalog = [
     statusLabel: "API review required",
     auth: "oauth",
     authLabel: "Provider authorization",
-    logo: faviconLogo("moovs.com", "https://www.moovs.com/"),
+    logo: imageLogo("/apps/logos/moovs.png", "https://apps.apple.com/us/app/moovs-driver/id1613250751"),
     website: "https://www.moovs.com/",
     workflows: [
       { title: "Quote request to reservation", description: "Pass a complete ride request into a reviewable reservation workflow." },

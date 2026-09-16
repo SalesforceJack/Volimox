@@ -151,3 +151,63 @@ export async function sendDemoExperienceEmail(input: {
     throw err
   }
 }
+
+export async function sendVerticalDemoReservationEmail(input: {
+  fullName: string
+  email: string
+  agentName: string
+  reservationId: string
+  requestedStartIso: string
+  timeZone: string
+  serviceSummary: string
+  details: string
+}): Promise<{ sent: true; providerId: string } | { sent: false; reasonCode: string }> {
+  const transport = createTransport()
+  const smtpUser = process.env.EMAIL_USER || process.env.SMTP_USER
+  if (!transport || !smtpUser) return { sent: false, reasonCode: "not_configured" }
+
+  const safe = {
+    fullName: esc(input.fullName),
+    agentName: esc(input.agentName),
+    reservationId: esc(input.reservationId),
+    requestedStartIso: esc(input.requestedStartIso),
+    timeZone: esc(input.timeZone),
+    serviceSummary: esc(input.serviceSummary),
+    details: esc(input.details),
+  }
+  const subject = `Volimox demo confirmation — ${input.agentName}`
+
+  try {
+    const info = await transport.sendMail({
+      from: `"Volimox Demo" <${smtpUser}>`,
+      to: input.email,
+      subject,
+      text: [
+        `Hi ${input.fullName},`,
+        `Your simulated ${input.agentName} reservation request was recorded for ${input.requestedStartIso} (${input.timeZone}).`,
+        `Service: ${input.serviceSummary}`,
+        `Details: ${input.details}`,
+        `Demo reference: ${input.reservationId}`,
+        "This is a Volimox demonstration. No real appointment was booked.",
+      ].join("\n"),
+      html: [
+        "<!DOCTYPE html><html><body style='margin:0;background:#f3f3ef;color:#161713;font-family:Arial,sans-serif;padding:32px'>",
+        "<div style='max-width:560px;margin:0 auto;background:#fff;border:1px solid #cbc9c0;padding:32px'>",
+        "<div style='font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#77776f'>Volimox simulated reservation</div>",
+        `<h1 style='font-size:28px;line-height:1.1;margin:22px 0'>Demo confirmation for ${safe.fullName}</h1>`,
+        `<p style='font-size:16px;line-height:1.7;color:#55564f'>The Example ${safe.agentName} agent recorded your simulated request.</p>`,
+        `<p><strong>Requested time:</strong> ${safe.requestedStartIso} (${safe.timeZone})</p>`,
+        `<p><strong>Service:</strong> ${safe.serviceSummary}</p>`,
+        `<p><strong>Details:</strong> ${safe.details}</p>`,
+        `<p><strong>Demo reference:</strong> ${safe.reservationId}</p>`,
+        "<div style='margin-top:28px;border-left:4px solid #f4ce38;padding:14px 18px;background:#f7f5ed'>This is a Volimox demonstration. No real appointment was booked.</div>",
+        "</div></body></html>",
+      ].join(""),
+    })
+    if (!info.messageId) throw new Error("SMTP response missing message ID")
+    return { sent: true, providerId: info.messageId }
+  } catch (error) {
+    if (isDefinitiveSmtpRejection(error)) return { sent: false, reasonCode: "rejected" }
+    throw error
+  }
+}

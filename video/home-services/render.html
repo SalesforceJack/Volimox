@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Volimox — Never lose the job</title>
+  <style>
+    :root {
+      --canvas: #f3f3ef;
+      --canvas-deep: #e8e8e1;
+      --ink: #151613;
+      --muted: #64655f;
+      --faint: #999a92;
+      --line: rgba(21, 22, 19, 0.14);
+      --signal: #f2cc3d;
+      --white: #fffefa;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body {
+      background: var(--ink);
+      color: var(--ink);
+      font-family: Bahnschrift, "Arial Narrow", sans-serif;
+      font-variation-settings: "wght" 470, "wdth" 100;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #stage {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      isolation: isolate;
+      background: var(--ink);
+    }
+
+    .scene { position: absolute; inset: 0; opacity: 0; overflow: hidden; }
+    .grain {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      pointer-events: none;
+      opacity: .055;
+      mix-blend-mode: multiply;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.18'/%3E%3C/svg%3E");
+    }
+
+    .brand {
+      position: absolute;
+      z-index: 40;
+      top: 62px;
+      left: 72px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      color: currentColor;
+    }
+    .brand-word { font-size: 20px; font-weight: 700; letter-spacing: .34em; text-transform: uppercase; }
+    .brand-symbol { position: relative; width: 44px; height: 36px; }
+    .brand-rail { position: absolute; top: 0; width: 8px; height: 33px; background: currentColor; }
+    .brand-rail.left { left: 10px; transform: skew(31deg); transform-origin: bottom; }
+    .brand-rail.right { right: 10px; transform: skew(-31deg); transform-origin: bottom; }
+    .brand-node { position: absolute; left: 50%; bottom: 0; width: 11px; height: 11px; transform: translateX(-50%); background: var(--signal); }
+
+    .eyebrow {
+      font-size: 18px;
+      font-weight: 650;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+    .headline {
+      margin: 0;
+      font-size: 86px;
+      font-weight: 650;
+      line-height: .97;
+      letter-spacing: -.055em;
+    }
+    .subhead { margin: 0; font-size: 27px; line-height: 1.45; color: var(--muted); }
+
+    .photo-scene { background: #1a1916; color: var(--white); }
+    .photo {
+      position: absolute;
+      inset: -28px;
+      background-image: url("../../public/video/volimox-home-services-plumber.png");
+      background-size: cover;
+      background-position: center;
+      transform: scale(1.025);
+    }
+    .photo-shade {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(8,9,7,.05) 0%, rgba(8,9,7,.05) 42%, rgba(8,9,7,.66) 78%, rgba(8,9,7,.88) 100%),
+        linear-gradient(0deg, rgba(8,9,7,.58), transparent 48%);
+    }
+    .opening-copy { position: absolute; right: 95px; top: 292px; width: 630px; }
+    .opening-copy .eyebrow { color: var(--signal); }
+    .opening-copy .headline { margin-top: 25px; font-size: 78px; }
+    .opening-copy .subhead { margin-top: 28px; color: rgba(255,255,255,.65); max-width: 510px; }
+
+    .incoming {
+      position: absolute;
+      right: 95px;
+      bottom: 86px;
+      width: 520px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(17,18,15,.87);
+      padding: 26px 30px;
+      box-shadow: 0 30px 90px rgba(0,0,0,.3), inset 0 1px rgba(255,255,255,.1);
+    }
+    .incoming-top { display: flex; align-items: center; gap: 18px; }
+    .avatar { display: grid; width: 54px; height: 54px; place-items: center; border-radius: 50%; background: var(--signal); color: var(--ink); font-size: 19px; font-weight: 700; }
+    .incoming-label { color: rgba(255,255,255,.42); font-size: 15px; letter-spacing: .14em; text-transform: uppercase; }
+    .incoming-name { margin-top: 6px; font-size: 25px; font-weight: 650; }
+    .incoming-status { margin-left: auto; color: #ff8b72; font-size: 16px; font-weight: 650; }
+    .call-beacon {
+      position: absolute;
+      right: 248px;
+      bottom: 292px;
+      width: 330px;
+      height: 190px;
+      pointer-events: none;
+      transform-origin: center;
+    }
+    .ring-wave {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 118px;
+      height: 76px;
+      margin: -38px 0 0 -59px;
+      border: 2px solid rgba(242,204,61,.9);
+      border-radius: 50%;
+      opacity: 0;
+    }
+    .ring-core {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      display: grid;
+      width: 94px;
+      height: 58px;
+      margin: -29px 0 0 -47px;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.32);
+      background: rgba(14,15,12,.86);
+      color: var(--signal);
+      box-shadow: 0 18px 46px rgba(0,0,0,.28), inset 0 1px rgba(255,255,255,.12);
+      font-size: 13px;
+      font-weight: 720;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .workflow-scene {
+      background:
+        linear-gradient(rgba(21,22,19,.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(21,22,19,.055) 1px, transparent 1px),
+        var(--canvas);
+      background-size: 48px 48px;
+    }
+    .workflow-copy { position: absolute; left: 92px; top: 258px; width: 675px; }
+    .workflow-copy .eyebrow { color: #77786f; }
+    .workflow-copy .headline { margin-top: 25px; }
+    .workflow-copy .subhead { margin-top: 30px; max-width: 570px; }
+
+    .phone-shell {
+      position: absolute;
+      right: 166px;
+      top: 71px;
+      width: 448px;
+      height: 938px;
+      padding: 9px;
+      border-radius: 58px;
+      background: #1b1c19;
+      box-shadow: 0 38px 100px rgba(38,39,35,.2), inset 0 1px rgba(255,255,255,.28);
+    }
+    .phone {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 49px;
+      background: #f7f6f1;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.09);
+    }
+    .island { position: absolute; z-index: 5; top: 15px; left: 50%; width: 130px; height: 34px; transform: translateX(-50%); border-radius: 23px; background: #11120f; }
+    .phone-header { height: 145px; padding: 59px 28px 18px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.85); }
+    .phone-contact { display: flex; align-items: center; gap: 14px; }
+    .contact-logo { display: grid; width: 44px; height: 44px; place-items: center; background: var(--ink); color: var(--white); font-size: 17px; font-weight: 700; }
+    .contact-title { font-size: 18px; font-weight: 680; }
+    .contact-meta { margin-top: 3px; color: var(--faint); font-size: 12px; }
+    .messages { display: flex; height: calc(100% - 145px); flex-direction: column; justify-content: flex-end; gap: 12px; padding: 25px 20px 36px; background: #efeee8; }
+    .bubble { max-width: 86%; padding: 13px 15px; border-radius: 21px; font-size: 15.5px; line-height: 1.42; box-shadow: 0 7px 20px rgba(31,32,29,.055); }
+    .bubble.out { margin-left: auto; border-bottom-right-radius: 6px; background: var(--signal); }
+    .bubble.in { border-bottom-left-radius: 6px; background: var(--white); }
+    .bubble-time { display: block; margin-top: 6px; text-align: right; color: rgba(21,22,19,.42); font-size: 10px; }
+
+    .status-stack { position: absolute; left: 92px; bottom: 120px; display: grid; width: 650px; gap: 1px; background: var(--line); }
+    .status-row { display: flex; align-items: center; gap: 19px; padding: 22px 25px; background: rgba(255,255,255,.82); }
+    .status-icon { display: grid; width: 34px; height: 34px; place-items: center; background: var(--ink); color: var(--signal); font-size: 17px; font-weight: 800; }
+    .status-label { font-size: 18px; font-weight: 650; }
+    .status-detail { margin-left: auto; color: var(--faint); font-size: 14px; }
+
+    .lead-scene { background: var(--ink); color: var(--white); }
+    .lead-grid {
+      position: absolute;
+      inset: 0;
+      opacity: .58;
+      background-image: linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+    .lead-copy { position: absolute; left: 92px; top: 245px; width: 610px; }
+    .lead-copy .eyebrow { color: var(--signal); }
+    .lead-copy .headline { margin-top: 24px; font-size: 80px; }
+    .lead-copy .subhead { margin-top: 28px; color: rgba(255,255,255,.53); }
+
+    .lead-shell { position: absolute; right: 92px; top: 136px; width: 890px; padding: 9px; background: rgba(255,255,255,.065); border: 1px solid rgba(255,255,255,.12); }
+    .lead-card { background: #fbfaf5; color: var(--ink); padding: 48px; box-shadow: inset 0 1px rgba(255,255,255,.9); }
+    .lead-top { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 32px; border-bottom: 1px solid var(--line); }
+    .lead-kicker { color: var(--muted); font-size: 14px; font-weight: 680; letter-spacing: .17em; text-transform: uppercase; }
+    .lead-title { margin-top: 13px; font-size: 42px; font-weight: 680; letter-spacing: -.035em; }
+    .urgent { background: #ff6d52; padding: 12px 16px; color: #fff; font-size: 13px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    .lead-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-top: 1px; background: var(--line); }
+    .lead-field { min-height: 132px; padding: 27px; background: #fbfaf5; }
+    .field-name { color: var(--faint); font-size: 12px; font-weight: 680; letter-spacing: .14em; text-transform: uppercase; }
+    .field-value { margin-top: 14px; font-size: 22px; font-weight: 650; line-height: 1.3; }
+    .completion { display: flex; gap: 16px; margin-top: 30px; }
+    .chip { display: flex; align-items: center; gap: 9px; padding: 12px 15px; background: #eeeee7; color: var(--muted); font-size: 13px; font-weight: 620; }
+    .check { color: #5f7b48; font-weight: 900; }
+
+    .result-scene { background: var(--canvas); }
+    .result-photo { position: absolute; inset: 0 58% 0 0; background-image: linear-gradient(90deg, transparent 50%, var(--canvas) 100%), url("../../public/video/volimox-home-services-plumber.png"); background-size: cover; background-position: 29% center; filter: saturate(.72); }
+    .result-copy { position: absolute; right: 105px; top: 224px; width: 780px; }
+    .result-copy .eyebrow { color: #77786f; }
+    .result-copy .headline { margin-top: 25px; font-size: 80px; }
+    .notification { margin-top: 52px; padding: 8px; background: rgba(21,22,19,.055); border: 1px solid rgba(21,22,19,.1); }
+    .notification-inner { display: flex; align-items: center; gap: 24px; padding: 26px; background: var(--white); box-shadow: 0 24px 65px rgba(41,42,37,.12), inset 0 1px #fff; }
+    .notification-icon { display: grid; width: 62px; height: 62px; place-items: center; background: var(--ink); color: var(--signal); font-size: 25px; font-weight: 750; }
+    .notification-title { font-size: 23px; font-weight: 680; }
+    .notification-copy { margin-top: 8px; color: var(--muted); font-size: 17px; }
+    .notification-time { margin-left: auto; align-self: flex-start; color: var(--faint); font-size: 13px; }
+
+    .cta-scene { background: var(--ink); color: var(--white); }
+    .cta-halo { position: absolute; left: 50%; top: 50%; width: 820px; height: 820px; transform: translate(-50%,-50%); border-radius: 50%; background: radial-gradient(circle, rgba(242,204,61,.12), rgba(242,204,61,0) 67%); }
+    .cta-center { position: absolute; inset: 0; display: flex; align-items: center; flex-direction: column; justify-content: center; text-align: center; }
+    .cta-brand { display: flex; align-items: center; gap: 26px; color: var(--white); }
+    .cta-brand .brand-symbol { width: 66px; height: 54px; }
+    .cta-brand .brand-rail { width: 11px; height: 50px; }
+    .cta-brand .brand-rail.left { left: 15px; }
+    .cta-brand .brand-rail.right { right: 15px; }
+    .cta-brand .brand-node { width: 16px; height: 16px; }
+    .cta-brand .brand-word { font-size: 32px; letter-spacing: .42em; }
+    .cta-center .headline { margin-top: 46px; max-width: 1350px; font-size: 91px; }
+    .cta-center .subhead { margin-top: 25px; color: rgba(255,255,255,.48); }
+    .cta-button { display: flex; align-items: center; gap: 28px; margin-top: 39px; padding: 14px 16px 14px 28px; background: var(--signal); color: var(--ink); font-size: 21px; font-weight: 700; }
+    .cta-arrow { display: grid; width: 48px; height: 48px; place-items: center; background: var(--ink); color: var(--white); font-size: 24px; }
+    .disclaimer { margin-top: 22px; color: rgba(255,255,255,.3); font-size: 13px; letter-spacing: .08em; }
+
+    .progress { position: absolute; z-index: 50; left: 0; bottom: 0; width: 100%; height: 7px; background: rgba(255,255,255,.09); }
+    .progress-fill { height: 100%; transform-origin: left; background: var(--signal); }
+  </style>
+</head>
+<body>
+  <main id="stage">
+    <section id="scene-1" class="scene photo-scene" data-start="0" data-end="4.2">
+      <div id="photo" class="photo"></div>
+      <div class="photo-shade"></div>
+      <div class="brand" style="color:var(--white)"><span class="brand-symbol"><i class="brand-rail left"></i><i class="brand-rail right"></i><i class="brand-node"></i></span><span class="brand-word">Volimox</span></div>
+      <div class="opening-copy">
+        <div class="eyebrow anim" data-in=".2">Incoming call · New customer</div>
+        <h1 class="headline anim" data-in=".45">You’re on the job.<br/>The call goes unanswered.</h1>
+        <p class="subhead anim" data-in=".75">Your hands are full. Sarah needs help now.</p>
+      </div>
+      <div id="call-beacon" class="call-beacon"><span class="ring-wave"></span><span class="ring-wave"></span><span class="ring-wave"></span><span class="ring-core">Ringing</span></div>
+      <div class="incoming anim" data-in="1.05">
+        <div class="incoming-top"><div class="avatar">S</div><div><div class="incoming-label">Incoming call</div><div class="incoming-name">Sarah · New customer</div></div><div id="call-status" class="incoming-status">Ringing</div></div>
+      </div>
+    </section>
+
+    <section id="scene-2" class="scene workflow-scene" data-start="3.7" data-end="8.2">
+      <div class="brand"><span class="brand-symbol"><i class="brand-rail left"></i><i class="brand-rail right"></i><i class="brand-node"></i></span><span class="brand-word">Volimox</span></div>
+      <div class="workflow-copy">
+        <div class="eyebrow anim" data-in=".2">Missed call detected</div>
+        <h2 class="headline anim" data-in=".45">Volimox responds<br/>before the lead leaves.</h2>
+        <p class="subhead anim" data-in=".8">An immediate text-back starts the conversation while you stay on the job.</p>
+      </div>
+      <div class="status-stack">
+        <div class="status-row anim" data-in="1.0"><span class="status-icon">✓</span><span class="status-label">Missed call captured</span><span class="status-detail">0.2 sec</span></div>
+        <div class="status-row anim" data-in="1.35"><span class="status-icon">→</span><span class="status-label">Text-back sent</span><span class="status-detail">Delivered</span></div>
+      </div>
+      <div class="phone-shell anim" data-in=".2">
+        <div class="phone"><div class="island"></div><div class="phone-header"><div class="phone-contact"><div class="contact-logo">V</div><div><div class="contact-title">Volimox Assistant</div><div class="contact-meta">Business messaging</div></div></div></div><div class="messages"><div class="bubble out anim" data-in="1.15">Hi Sarah — sorry we missed your call. What can we help you with today?<span class="bubble-time">Delivered now</span></div></div></div>
+      </div>
+    </section>
+
+    <section id="scene-3" class="scene workflow-scene" data-start="7.7" data-end="13.2">
+      <div class="brand"><span class="brand-symbol"><i class="brand-rail left"></i><i class="brand-rail right"></i><i class="brand-node"></i></span><span class="brand-word">Volimox</span></div>
+      <div class="workflow-copy">
+        <div class="eyebrow anim" data-in=".15">The conversation continues</div>
+        <h2 class="headline anim" data-in=".35">The important details,<br/>already collected.</h2>
+        <p class="subhead anim" data-in=".7">Problem, address, urgency and timing — captured in the customer’s own words.</p>
+      </div>
+      <div class="status-stack">
+        <div class="status-row anim" data-in="2.2"><span class="status-icon">✓</span><span class="status-label">Problem identified</span><span class="status-detail">Burst pipe</span></div>
+        <div class="status-row anim" data-in="3.1"><span class="status-icon">✓</span><span class="status-label">Address collected</span><span class="status-detail">Clifton, NJ</span></div>
+        <div class="status-row anim" data-in="3.85"><span class="status-icon">✓</span><span class="status-label">Urgency confirmed</span><span class="status-detail">Today</span></div>
+      </div>
+      <div class="phone-shell anim" data-in=".1">
+        <div class="phone"><div class="island"></div><div class="phone-header"><div class="phone-contact"><div class="contact-logo">V</div><div><div class="contact-title">Volimox Assistant</div><div class="contact-meta">Business messaging</div></div></div></div><div class="messages">
+          <div class="bubble out">Hi Sarah — sorry we missed your call. What can we help you with today?<span class="bubble-time">Delivered</span></div>
+          <div class="bubble in anim" data-in=".75">My kitchen pipe burst. Water is leaking everywhere.<span class="bubble-time">Now</span></div>
+          <div class="bubble out anim" data-in="1.75">What’s the service address, and how soon do you need help?<span class="bubble-time">Delivered</span></div>
+          <div class="bubble in anim" data-in="2.85">14 Oak Street, Clifton. I need someone today.<span class="bubble-time">Now</span></div>
+        </div></div>
+      </div>
+    </section>
+
+    <section id="scene-4" class="scene lead-scene" data-start="12.7" data-end="18.2">
+      <div class="lead-grid"></div>
+      <div class="brand" style="color:var(--white)"><span class="brand-symbol"><i class="brand-rail left"></i><i class="brand-rail right"></i><i class="brand-node"></i></span><span class="brand-word">Volimox</span></div>
+      <div class="lead-copy">
+        <div class="eyebrow anim" data-in=".15">Conversation → opportunity</div>
+        <h2 class="headline anim" data-in=".4">No phone tag.<br/>No lost details.</h2>
+        <p class="subhead anim" data-in=".75">One clean job brief, ready for the person who can act.</p>
+      </div>
+      <div class="lead-shell anim" data-in=".35">
+        <div class="lead-card">
+          <div class="lead-top"><div><div class="lead-kicker">New service request</div><div class="lead-title">Sarah · Burst kitchen pipe</div></div><div class="urgent">Urgent · Today</div></div>
+          <div class="lead-fields">
+            <div class="lead-field anim" data-in="1.0"><div class="field-name">Service address</div><div class="field-value">14 Oak Street<br/>Clifton, New Jersey</div></div>
+            <div class="lead-field anim" data-in="1.25"><div class="field-name">Customer need</div><div class="field-value">Active water leak<br/>Kitchen plumbing</div></div>
+            <div class="lead-field anim" data-in="1.5"><div class="field-name">Requested timing</div><div class="field-value">Today<br/>As soon as available</div></div>
+            <div class="lead-field anim" data-in="1.75"><div class="field-name">Status</div><div class="field-value">Ready for owner<br/>follow-up</div></div>
+          </div>
+          <div class="completion"><div class="chip anim" data-in="2.2"><span class="check">✓</span> Problem identified</div><div class="chip anim" data-in="2.45"><span class="check">✓</span> Address collected</div><div class="chip anim" data-in="2.7"><span class="check">✓</span> Urgency confirmed</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="scene-5" class="scene result-scene" data-start="17.7" data-end="22.3">
+      <div id="result-photo" class="result-photo"></div>
+      <div class="brand"><span class="brand-symbol"><i class="brand-rail left"></i><i class="brand-rail right"></i><i class="brand-node"></i></span><span class="brand-word">Volimox</span></div>
+      <div class="result-copy">
+        <div class="eyebrow anim" data-in=".15">Back to the work that matters</div>
+        <h2 class="headline anim" data-in=".4">You get the lead.<br/>Volimox handles<br/>the first response.</h2>
+        <div class="notification anim" data-in="1.1"><div class="notification-inner"><div class="notification-icon">V</div><div><div class="notification-title">New urgent lead ready</div><div class="notification-copy">Sarah · Burst pipe · Clifton · Today</div></div><div class="notification-time">now</div></div></div>
+      </div>
+    </section>
+
+    <section id="scene-6" class="scene cta-scene" data-start="21.8" data-end="25.2">
+      <div class="cta-halo"></div>
+      <div class="cta-center">
+        <div class="cta-brand anim" data-in=".12"><span class="brand-symbol"><i class="brand-rail left"></i><i class="brand-rail right"></i><i class="brand-node"></i></span><span class="brand-word">Volimox</span></div>
+        <h2 class="headline anim" data-in=".38">The AI partner that answers<br/>when you can’t.</h2>
+        <p class="subhead anim" data-in=".68">Missed calls become qualified opportunities — automatically.</p>
+        <div class="cta-button anim" data-in=".92">Try the live SMS demo <span class="cta-arrow">→</span></div>
+        <div class="disclaimer anim" data-in="1.12">NO PAYMENT · YOUR NUMBER IS USED ONLY FOR THE REQUESTED DEMO</div>
+      </div>
+    </section>
+
+    <div class="grain"></div>
+    <div class="progress"><div id="progress" class="progress-fill"></div></div>
+  </main>
+
+  <script>
+    const duration = 24.5;
+    const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+    const ease = (v) => { const x = clamp(v); return 1 - Math.pow(1 - x, 4); };
+    const fadeWindow = (t, start, end, edge = .48) => clamp(Math.min((t - start) / edge, (end - t) / edge));
+
+    function renderAt(t) {
+      document.querySelectorAll('.scene').forEach((scene) => {
+        const start = Number(scene.dataset.start);
+        const end = Number(scene.dataset.end);
+        const local = t - start;
+        const sceneOpacity = scene.id === 'scene-1'
+          ? clamp((end - t) / .48)
+          : fadeWindow(t, start, end);
+        scene.style.opacity = sceneOpacity.toFixed(4);
+        scene.querySelectorAll('.anim').forEach((el) => {
+          const at = Number(el.dataset.in || 0);
+          const p = ease((local - at) / .58);
+          el.style.opacity = p.toFixed(4);
+          el.style.transform = `translate3d(0, ${(1 - p) * 34}px, 0)`;
+        });
+      });
+
+      const photo = document.getElementById('photo');
+      photo.style.transform = `scale(${1.025 + clamp(t / 4.2) * .035}) translate3d(${clamp(t / 4.2) * -8}px,0,0)`;
+      const resultPhoto = document.getElementById('result-photo');
+      const resultProgress = clamp((t - 17.7) / 4.6);
+      resultPhoto.style.transform = `scale(${1.02 + resultProgress * .025}) translate3d(${resultProgress * -5}px,0,0)`;
+      const callStatus = document.getElementById('call-status');
+      const callMissed = t >= 2.65;
+      callStatus.textContent = callMissed ? 'Missed call' : 'Ringing';
+      callStatus.style.color = callMissed ? '#ff8b72' : '#f2cc3d';
+
+      const beacon = document.getElementById('call-beacon');
+      const ringIn = clamp((t - .72) / .2);
+      const ringOut = clamp((2.68 - t) / .24);
+      const ringOpacity = Math.min(ringIn, ringOut);
+      const shake = ringOpacity > 0 ? Math.sin((t - .72) * 48) * 5.5 : 0;
+      beacon.style.opacity = ringOpacity.toFixed(4);
+      beacon.style.transform = `translate3d(${shake}px, 0, 0)`;
+      beacon.querySelector('.ring-core').textContent = callMissed ? 'Missed' : 'Ringing';
+      beacon.querySelectorAll('.ring-wave').forEach((wave, index) => {
+        const cycle = ((t - .72) * 1.35 + index * .32 + 1) % 1;
+        wave.style.opacity = (ringOpacity * (1 - cycle) * .8).toFixed(4);
+        wave.style.transform = `scale(${.68 + cycle * 1.08})`;
+      });
+      document.getElementById('progress').style.transform = `scaleX(${clamp(t / duration)})`;
+      window.__renderedTime = t;
+    }
+
+    window.renderAt = renderAt;
+    renderAt(Number(new URLSearchParams(location.search).get('t') || 0));
+  </script>
+</body>
+</html>
