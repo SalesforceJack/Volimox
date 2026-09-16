@@ -1,6 +1,6 @@
 # Volimox + Grok Bot: Urun, Ilk 3 Musteri ve YC Yatirim Stratejisi
 
-**Tarih:** 26 Agustos 2026  
+**Tarih:** 26 Agustos 2026
 **Karar:** Grok Bot, Volimox'un musteriye satilan calisma motoru degil; kurucu ekibin satis, pilot QA, musteri basarisi ve YC kaniti toplama sistemi olmali. Musteriye satilan urun Volimox olarak kalmali.
 
 ## 1. Yonetici ozeti
@@ -32,9 +32,9 @@ Oncelik sirasi:
 
 ### Volimox hakkinda
 
-**Gercek checkout:** `C:\Users\jackt\Projects All\volimox_clone`  
-**Remote:** `https://github.com/SalesforceJack/Volimox.git`  
-**Branch / HEAD:** `codex/example-limo-productization` / `4476c049a4776aeb0876dd6d279d23ec9bc1bb3b`  
+**Gercek checkout:** `C:\Users\jackt\Projects All\volimox_clone`
+**Remote:** `https://github.com/SalesforceJack/Volimox.git`
+**Branch / HEAD:** `codex/example-limo-productization` / `4476c049a4776aeb0876dd6d279d23ec9bc1bb3b`
 **Durum:** Working tree ciddi bicimde dirty; Example Limo productization dosyalari henuz commit edilmemis. Bu rapor mevcut degisiklikleri sahiplenmez veya temizlemez.
 
 Mevcut kod su tezi gercekten destekliyor:
@@ -129,9 +129,9 @@ Bu Bot YC basvurusunun kanit tablosunu da guncel tutar; pazarlama cumlesi uretme
 
 ## 5. Ilk satilacak paket
 
-**Paket adi:** Volimox After-Hours Revenue Desk  
-**Sure:** 30 gun ucretli design-partner pilotu  
-**Kapsam:** Bir telefon hatti veya web/SMS girisi, bir fiyat politikasi, bir payment/handoff akisi, bir operator dashboard/weekly report.  
+**Paket adi:** Volimox After-Hours Revenue Desk
+**Sure:** 30 gun ucretli design-partner pilotu
+**Kapsam:** Bir telefon hatti veya web/SMS girisi, bir fiyat politikasi, bir payment/handoff akisi, bir operator dashboard/weekly report.
 **Kapsam disi:** Tam dispatch replacement, driver optimization, affiliate network, tum entegrasyonlar, otonom refund/cancellation.
 
 **Fiyat hipotezi:** Ilk uc musteri icin 30 gunluk pilot `1.500 USD`; basarili pilot sonrasi `750-1.500 USD/ay + provider usage`. Bu bir pazar gercegi degil, willingness-to-pay testidir. Indirim karsiliginda referans, veri veya uzun kontrat istemek yerine gercek para ve aylik yenileme sinyali toplanmali.
