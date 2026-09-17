@@ -113,7 +113,7 @@ function configuredVoiceProvider(): VoiceProvider {
   const configured = process.env.VOICE_PROVIDER?.trim().toLowerCase()
   if (configured === "gemini") return "gemini"
   if (configured === "xai") return "xai"
-  return process.env.XAI_API_KEY?.trim() ? "xai" : "gemini"
+  return "gemini"
 }
 
 function providerOrder(fallback: boolean): VoiceProvider[] {
