@@ -23,8 +23,8 @@ type VoiceTokenRequest = {
   demoVoiceSessionToken?: string
 }
 
-const DEFAULT_LIVE_MODEL = "gemini-3.1-flash-live-preview"
-const DEFAULT_FALLBACK_LIVE_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
+const DEFAULT_LIVE_MODEL = "gemini-3.8-live"
+const DEFAULT_FALLBACK_LIVE_MODEL = "gemini-2.5-flash-native-audio-latest"
 const DEFAULT_XAI_VOICE_MODEL = "grok-voice-think-fast-2.0"
 const DEFAULT_XAI_VOICE_NAME = "carina"
 const DEFAULT_XAI_VOICE_SPEED = 1.2

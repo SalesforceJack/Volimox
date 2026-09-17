@@ -976,7 +976,7 @@ export function ProtonLiveBooking({ agentId = "limo", compact = false }: { agent
       } else {
         const ai = new GoogleGenAI({ apiKey: payload.token, httpOptions: { apiVersion: "v1alpha" } })
         connectionPromise = ai.live.connect({
-          model: payload.model || "gemini-3.1-flash-live-preview",
+          model: payload.model || "gemini-3.8-live",
           // Keep transcription enabled on the browser connection as well as on
           // the ephemeral-token constraint. This makes customer turns available
           // to the transcript UI across Gemini Live model variants.
