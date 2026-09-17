@@ -266,17 +266,16 @@ function DemoExplainerVideo({ onHalfway }: { onHalfway: () => void }) {
   const startedTracked = useRef(false)
   const halfwayTracked = useRef(false)
   const reduceMotion = useReducedMotion()
-  const [hydrated, setHydrated] = useState(false)
-
-  useEffect(() => {
-    setHydrated(true)
-  }, [])
 
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
 
     video.muted = true
+    if (reduceMotion) {
+      video.pause()
+      return
+    }
 
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry?.isIntersecting) {
@@ -289,14 +288,11 @@ function DemoExplainerVideo({ onHalfway }: { onHalfway: () => void }) {
         startedTracked.current = true
         trackDemoEvent("follow_up_demo_video_started")
       }).catch(() => {
-        // The reduced-motion controls provide a manual playback fallback when autoplay is blocked.
+        // Native controls allow manual playback when autoplay is blocked.
       })
     }, { threshold: 0.35 })
 
     observer.observe(video)
-    video.addEventListener("loadeddata", () => {
-      if (video.paused && !reduceMotion) void video.play().catch(() => undefined)
-    }, { once: true })
     return () => {
       observer.disconnect()
       video.pause()
@@ -316,13 +312,13 @@ function DemoExplainerVideo({ onHalfway }: { onHalfway: () => void }) {
     <div className="mt-12 overflow-hidden border border-line-strong bg-ink text-white lg:grid lg:grid-cols-[.34fr_.66fr]">
       <div className="flex flex-col justify-between border-b border-white/10 p-6 sm:p-8 lg:border-b-0 lg:border-r">
         <div>
-          <p className="font-mono text-[9px] uppercase tracking-[.17em] text-signal">See it in 24 seconds</p>
-          <h3 className="mt-5 max-w-[12ch] text-[clamp(2rem,3.2vw,3.7rem)] font-semibold leading-[.92] tracking-[-.055em]">A missed call becomes a ready-to-work lead.</h3>
-          <p id="follow-up-video-description" className="mt-5 max-w-md text-sm leading-6 text-white/55">Watch Mox respond while the owner stays focused on the job. No app walkthrough. Just the customer experience from ring to recovered lead.</p>
+          <p className="font-mono text-[9px] uppercase tracking-[.17em] text-signal">See it in 26 seconds</p>
+          <h3 className="mt-5 max-w-[12ch] text-[clamp(2rem,3.2vw,3.7rem)] font-semibold leading-[.92] tracking-[-.055em]">Your team is busy. Mox takes the call.</h3>
+          <p id="follow-up-video-description" className="mt-5 max-w-md text-sm leading-6 text-white/55">See Mox answer an incoming call, capture the customer's request, and keep your team ready to follow up.</p>
         </div>
 
         <div className="mt-8 border-t border-white/10 pt-6">
-          <p className="font-mono text-[9px] uppercase tracking-[.14em] text-white/35">Autoplays silently · Loops while visible</p>
+          <p className="font-mono text-[9px] uppercase tracking-[.14em] text-white/35">Starts muted · Turn on sound to hear Mox</p>
           <a href="#follow-up-form" onClick={() => trackDemoEvent("follow_up_demo_video_cta_clicked")} className="mt-4 inline-flex h-12 items-center justify-center gap-2 bg-signal px-5 text-sm font-semibold text-ink transition hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-signal">
             Try it on your phone <ArrowRight size={15} />
           </a>
@@ -335,19 +331,16 @@ function DemoExplainerVideo({ onHalfway }: { onHalfway: () => void }) {
           muted
           loop
           playsInline
-          // `useReducedMotion` is resolved in the browser. Delay the boolean
-          // attribute until after hydration so SSR and the first client render
-          // produce identical video markup.
-          controls={hydrated && reduceMotion ? true : undefined}
-          preload="auto"
-          poster="/video/volimox-home-services-demo-poster.jpg"
-          aria-label="Volimox missed-call recovery explainer"
+          controls
+          preload="metadata"
+          poster="/video/volimox-the-next-call-v6-poster.jpg"
+          aria-label="Mox answers a call while your team is busy"
           aria-describedby="follow-up-video-description"
           onTimeUpdate={trackHalfway}
           className="aspect-video h-auto w-full bg-black object-contain"
         >
-          <source src="/video/volimox-home-services-demo.webm" type="video/webm" />
-          <source src="/video/volimox-home-services-demo.mp4" type="video/mp4" />
+          <source src="/video/volimox-the-next-call-v6.webm" type="video/webm" />
+          <source src="/video/volimox-the-next-call-v6.mp4" type="video/mp4" />
           Your browser does not support embedded video.
         </video>
       </div>
