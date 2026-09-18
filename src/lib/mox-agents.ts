@@ -51,15 +51,42 @@ const exampleLimoDispatchTool = {
   },
 }
 
+const exampleLimoAddressVerificationTool = {
+  name: "verify_example_limo_address",
+  description: "Verify and normalize exactly one pickup or destination address as soon as the rider gives it, before asking the next question. Never guess whether an address is real or wait until the quote to discover a bad address.",
+  parametersJsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["address", "kind"],
+    properties: {
+      address: stringField("The single pickup or destination value exactly as the rider gave it"),
+      kind: { type: "string", enum: ["pickup", "destination"], description: "Which booking field this address belongs to" },
+    },
+  },
+}
+
+const exampleLimoEndConversationTool = {
+  name: "end_example_limo_conversation",
+  description: "End the Example Limo browser voice session only after the final goodbye has been spoken and the rider needs nothing further. Never call this while a booking question is unanswered.",
+  parametersJsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["reason"],
+    properties: {
+      reason: { type: "string", enum: ["booking_complete", "rider_said_goodbye", "no_further_help_needed"] },
+    },
+  },
+}
+
 const limoTools = [
   {
     functionDeclarations: [{
       name: "get_example_limo_quote",
-      description: "Run the authoritative Example Limo Proton-parity quote engine only after every required booking field is directly confirmed. Recognized airports, venues, hotels, and landmarks may be passed as spoken; the server resolves them before routing. The first call returns all vehicle options that fit.",
+      description: "Run the authoritative Example Limo quote engine only after every required booking field is directly confirmed. Recognized airports, venues, hotels, and landmarks may be passed as spoken; the server resolves them before routing. The first call returns all vehicle options that fit.",
       parametersJsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["pickup_address", "destination_address", "departure_time_iso", "passenger_count", "luggage_count", "phone", "service_type"],
+        required: ["pickup_address", "destination_address", "departure_time_iso", "passenger_count", "luggage_count", "phone", "service_type", "airline"],
         properties: {
           pickup_address: stringField("Spoken pickup street address or recognizable place; the server resolves it with Google"),
           destination_address: stringField("Spoken drop-off street address or recognizable place; the server resolves it with Google"),
@@ -72,11 +99,11 @@ const limoTools = [
           trip_type: stringField("one_way or round_trip for non-airport rides"),
           stops: { type: "array", items: stringField("Intermediate stop location") },
           hours_requested: { type: "number", minimum: 2 },
-          airline: stringField("Optional airline for airport trips; use an empty string if unknown"),
+          airline: stringField("For airport trips, the rider's direct answer to 'What airlines?'; use an empty string only after the rider says they do not know; use an empty string for non-airport trips"),
           vehicle_name: stringField("Only send after a customer explicitly selects Luxury Sedan or Large SUV; omit for the first dual quote"),
         },
       },
-    }, {
+    }, exampleLimoAddressVerificationTool, exampleLimoEndConversationTool, {
       name: "send_example_limo_checkout_link",
       description: "Report the customer's intent only. Call action=select_vehicle for a clear Sedan/SUV choice. Call action=create_checkout only after a separate explicit yes to the exact selected price. The website attaches the authoritative quote and approval state.",
       parametersJsonSchema: {

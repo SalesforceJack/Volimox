@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit",
     "test": "npx tsx --tsconfig tsconfig.json src/tests/side-effect-machine.test.ts && npx tsx --tsconfig tsconfig.json src/tests/final-hardening.test.mjs && npx tsx --tsconfig tsconfig.json src/tests/observability.test.ts && npx tsx --tsconfig tsconfig.json src/tests/proton-request-id.test.ts && npx tsx --tsconfig tsconfig.json src/tests/ready-route.test.ts && node scripts/postman-validator.test.mjs",
     "validate:postman": "node ./scripts/validate-postman.mjs",
-    "test:example-limo": "vitest run src/tests/example-limo.test.ts src/tests/example-limo-audit.test.ts src/tests/example-limo-client-state.test.ts src/tests/example-limo-fixes.test.ts",
+    "test:example-limo": "vitest run src/tests/example-limo.test.ts src/tests/example-limo-audit.test.ts src/tests/example-limo-client-state.test.ts src/tests/example-limo-fixes.test.ts src/tests/example-limo-address-verification.test.ts",
     "test:example-limo:live": "tsx --tsconfig tsconfig.json scripts/run-example-limo-live-conversations.ts",
     "test:firestore": "npx tsx --tsconfig tsconfig.json src/tests/firestore-side-effect.test.ts",
     "retell:sync-demo": "node scripts/sync-retell-demo-agent.mjs"

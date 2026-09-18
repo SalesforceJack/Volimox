@@ -146,8 +146,10 @@ const stageIcon = [Phone, MapPin, Radio, Check]
 
 const toolLabels: Record<string, string> = {
   get_example_limo_quote: "Route and vehicle quotes calculated",
+  verify_example_limo_address: "Address verified before quoting",
   send_example_limo_checkout_link: "Secure checkout prepared",
   request_example_limo_dispatch: "Dispatch callback request captured",
+  end_example_limo_conversation: "Conversation closed after goodbye",
   get_volimox_demo_quote: "Route and quote calculated",
   create_volimox_demo_link: "Continuation sent",
   capture_demo_contact: "Lead captured",
@@ -162,6 +164,11 @@ function toolDetail(name: string, value: unknown) {
     const prices = options.map((item: any) => `${item.vehicleName || "Vehicle"} $${Number(item.quotedTotalUsd || item.totalPrice || 0).toFixed(2)}`)
     if (prices.length) return prices.join(" · ")
   }
+  if (name === "verify_example_limo_address") {
+    if (result.status === "confirmed") return "Address verified"
+    if (result.status === "needs_confirmation") return "Address needs the rider's confirmation"
+    return "Address needs a clearer value"
+  }
   if (name === "get_volimox_demo_quote") {
     const distance = Number(result.distanceMiles)
     const duration = Number(result.durationMinutes)
@@ -173,6 +180,7 @@ function toolDetail(name: string, value: unknown) {
     return result.checkoutUrl ? "Secure checkout button is ready" : (result.reviewRequired ? "Human review required before payment" : "Checkout prepared")
   }
   if (name === "request_example_limo_dispatch") return result.dispatchContactCaptured ? "Dispatch callback number captured" : "Dispatch request prepared"
+  if (name === "end_example_limo_conversation") return "Final goodbye delivered"
   if (name === "create_volimox_demo_link") return result.smsSent ? "SMS delivered to the approved number" : "Continuation link created"
   if (name === "capture_demo_contact") return "Contact and business need routed for follow-up"
   if (name === "start_requested_demo_call") return "Approved demonstration callback requested"
@@ -530,8 +538,10 @@ export function ProtonLiveBooking({ agentId = "limo", compact = false }: { agent
     try {
       const demoSessionToken = window.localStorage.getItem("volimox_demo_session_token") || undefined
       const isExampleLimoQuote = agentId === "limo" && name === "get_example_limo_quote"
+      const isExampleLimoAddressVerification = agentId === "limo" && name === "verify_example_limo_address"
       const isExampleLimoCheckout = agentId === "limo" && name === "send_example_limo_checkout_link"
       const isExampleLimoDispatch = agentId === "limo" && name === "request_example_limo_dispatch"
+      const isExampleLimoEndConversation = agentId === "limo" && name === "end_example_limo_conversation"
       const isVerticalReservation = agentId !== "limo" && name === "create_demo_reservation"
       const nextArgs = { ...args }
       if (isVerticalReservation) {
@@ -596,26 +606,40 @@ export function ProtonLiveBooking({ agentId = "limo", compact = false }: { agent
         }
         nextArgs.conversation_transcript = currentConversationTranscript()
       }
+      if (isExampleLimoEndConversation) {
+        emitAuditEvent("tool_requested", { tool: { toolName: name, status: "running", args: nextArgs } })
+        const resultValue = { ok: true, reason: typeof nextArgs.reason === "string" ? nextArgs.reason : "no_further_help_needed", message: "The Example Limo voice session can close now." }
+        toolRunsRef.current = toolRunsRef.current.map((item) => item.id === id ? { ...item, status: "completed", detail: toolDetail(name, resultValue) } : item)
+        setToolRuns(toolRunsRef.current)
+        emitAuditEvent("tool_completed", { tool: { toolName: name, status: "completed", data: resultValue } })
+        trackDemoEvent("voice_tool_completed", { agentId, tool: name })
+        window.setTimeout(() => {
+          if (state === "live") stopSession(true, true, "farewell")
+        }, 700)
+        return resultValue
+      }
       emitAuditEvent("tool_requested", { tool: { toolName: name, status: "running", args: nextArgs } })
       const endpoint = isExampleLimoQuote
         ? "/api/example-limo/quote"
-        : isExampleLimoCheckout
-          ? "/api/example-limo/checkout-link"
-          : isExampleLimoDispatch
-          ? "/api/example-limo/dispatch"
-            : isVerticalReservation
-              ? "/api/mox-demo/reservation"
-            : "/api/mox-demo/action"
+        : isExampleLimoAddressVerification
+          ? "/api/example-limo/address"
+          : isExampleLimoCheckout
+            ? "/api/example-limo/checkout-link"
+            : isExampleLimoDispatch
+              ? "/api/example-limo/dispatch"
+              : isVerticalReservation
+                ? "/api/mox-demo/reservation"
+                : "/api/mox-demo/action"
       const headers: Record<string, string> = { "Content-Type": "application/json" }
       if (agentId === "limo" && voiceSessionToken.current) headers["x-example-limo-voice-session"] = voiceSessionToken.current
       if (isVerticalReservation && demoVoiceSessionToken.current) headers["x-volimox-demo-voice-session"] = demoVoiceSessionToken.current
-      const body = isExampleLimoQuote || isExampleLimoCheckout || isExampleLimoDispatch
+      const body = isExampleLimoQuote || isExampleLimoAddressVerification || isExampleLimoCheckout || isExampleLimoDispatch
         ? { ...nextArgs, voiceSessionToken: voiceSessionToken.current || undefined }
         : isVerticalReservation
           ? { agentId, args: nextArgs }
           : { agentId, tool: name, args: nextArgs, demoSessionToken }
       let response = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) })
-      let payload = await response.json() as { ok?: boolean; result?: unknown; error?: string; code?: string; action?: string; agent_say_price?: string }
+      let payload = await response.json() as { ok?: boolean; result?: unknown; error?: string; code?: string; action?: string; agent_say_price?: string; status?: string; agent_say_line?: string }
       if (
         (!response.ok || !payload.ok)
         && isExampleLimoCheckout
@@ -654,8 +678,9 @@ export function ProtonLiveBooking({ agentId = "limo", compact = false }: { agent
           payload = await response.json() as typeof payload
         }
       }
-      if (!response.ok || !payload.ok) throw new Error(payload.error || "The operation could not be completed.")
-      const resultValue = isExampleLimoQuote || isExampleLimoCheckout || isExampleLimoDispatch ? payload : payload.result
+      const isAddressRepairResult = isExampleLimoAddressVerification && payload.status === "unresolved" && typeof payload.agent_say_line === "string"
+      if (!response.ok || (!payload.ok && !isAddressRepairResult)) throw new Error(payload.error || "The operation could not be completed.")
+      const resultValue = isExampleLimoQuote || isExampleLimoAddressVerification || isExampleLimoCheckout || isExampleLimoDispatch ? payload : payload.result
       if (isExampleLimoQuote) {
         latestQuote.current = resultValue as ClientQuoteState
         checkoutSelection.current = null
