@@ -89,7 +89,7 @@ export default function PrivacyPage() {
             We may update this notice as the website, demonstrations, or services change. The page will show the current working version, and material changes should be reflected in an updated notice before they apply to a new use.
           </p>
           <p>
-            General contact: {SITE_CONTACT.address}. Phone:{" "}
+            General contact: {" "}
             <a className="font-semibold text-ink underline decoration-signal underline-offset-4" href={"tel:" + SITE_CONTACT.phoneTel}>
               {SITE_CONTACT.phoneDisplay}
             </a>

@@ -85,7 +85,7 @@ export default function LegalPage() {
             .
           </p>
           <p>
-            Volimox contact address: {SITE_CONTACT.address}. Phone: {SITE_CONTACT.phoneDisplay}.
+            Volimox phone: {SITE_CONTACT.phoneDisplay}.
           </p>
         </ResourceSection>
       </div>

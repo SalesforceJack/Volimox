@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowUpRight, EnvelopeSimple, MapPin, Phone } from "@phosphor-icons/react/dist/ssr"
+import { ArrowUpRight, EnvelopeSimple, Phone } from "@phosphor-icons/react/dist/ssr"
 import { BrandMark } from "@/components/BrandMark"
 import { SITE_CONTACT } from "@/config/siteContact"
 
@@ -32,10 +32,6 @@ export function VolimoxFooter() {
               <EnvelopeSimple size={16} className="text-signal" aria-hidden="true" />
               <span>{SITE_CONTACT.email}</span>
             </a>
-            <span className="flex items-start gap-3">
-              <MapPin size={16} className="mt-0.5 shrink-0 text-signal" aria-hidden="true" />
-              <span>{SITE_CONTACT.address}</span>
-            </span>
           </div>
         </div>
 
